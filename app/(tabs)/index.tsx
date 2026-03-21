@@ -1,98 +1,189 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Button, ButtonText } from "@/components/ui/button";
+import { Image } from "@/components/ui/image";
+import {
+  Table,
+  TableBody,
+  TableData,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Text } from "@/components/ui/text";
+import { Div } from "@expo/html-elements";
+import { useState } from "react";
+import { Pressable } from "react-native";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+type Drug = {
+  name: string;
+  morning: number;
+  noon: number;
+  evening: number;
+};
+
+const ITEMS_PER_PAGE = 5;
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const [data, setData] = useState<Drug[]>(
+    Array.from({ length: 5 }, (_, i) => ({
+      name: `Drug #${i + 1}`,
+      morning: 0,
+      noon: 0,
+      evening: 0,
+    })),
+  );
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const [page, setPage] = useState(1);
+  const totalPages = Math.ceil(data.length / ITEMS_PER_PAGE);
+  const currentData = data.slice(
+    (page - 1) * ITEMS_PER_PAGE,
+    page * ITEMS_PER_PAGE,
+  );
+
+  const increment = (index: number, field: keyof Drug) => {
+    const realIndex = (page - 1) * ITEMS_PER_PAGE + index;
+    setData((prev) =>
+      prev.map((item, i) =>
+        i === realIndex
+          ? { ...item, [field]: (item[field] as number) + 1 }
+          : item,
+      ),
+    );
+  };
+
+  return (
+    <Div className="py-12 bg-neutral-700 flex-1">
+      {/* Header Section */}
+      <Div className="flex-row items-center bg-neutral-500 p-2 mb-4">
+        <Image
+          size="md"
+          source={{ uri: require("@/assets/images/bluetooth-solid-icon.png") }}
+          alt="image"
+        />
+        <Text className="flex-1 text-2xl font-bold text-white">
+          Turn On Bluetooth and{"\n"}
+          <Text className="text-2xl font-bold text-white">
+            PRESS THIS BUTTON
+          </Text>
+        </Text>
+      </Div>
+
+      {/* Table */}
+      <Table className="w-full border border-gray-200 overflow-hidden bg-neutral-900">
+        {/* Header */}
+        <TableHeader className="bg-neutral-500 mb-2">
+          <TableRow>
+            <TableHead className="text-gray-600 bg-neutral-500 font-semibold"></TableHead>
+            {["MORNING", "NOON", "EVENING"].map((label) => (
+              <TableHead
+                key={label}
+                className="text-gray-600 bg-neutral-500 px-1 font-semibold text-center"
+              >
+                <Button
+                  variant="solid"
+                  size="md"
+                  action="primary"
+                  className="px-2"
+                >
+                  <ButtonText
+                    className="text-blue-700 text-center"
+                    numberOfLines={1}
+                  >
+                    {label}
+                  </ButtonText>
+                </Button>
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+
+        {/* Body */}
+        <TableBody>
+          {currentData.map((item, index) => (
+            <TableRow key={index} className="bg-neutral-500 mb-1">
+              {/* Drug Name */}
+              <TableData className="py-5 bg-neutral-300 flex items-center justify-center">
+                <Text className="text-black text-md font-bold text-center">
+                  {item.name}
+                </Text>
+              </TableData>
+
+              {/* Morning / Noon / Evening */}
+              {(["morning", "noon", "evening"] as (keyof Drug)[]).map(
+                (field) => (
+                  <TableData key={field} className="text-center">
+                    <Pressable onPress={() => increment(index, field)}>
+                      <Text className="text-sm font-bold">{item[field]}</Text>
+                    </Pressable>
+                  </TableData>
+                ),
+              )}
+            </TableRow>
+          ))}
+        </TableBody>
+
+        {/* Pagination */}
+        <TableFooter>
+          <TableRow className="bg-gray-100">
+            <TableHead className="w-full">
+              <Div className="w-full flex-row justify-center py-4">
+                <Div className="flex-row items-center gap-2 bg-gray-100 px-3 py-2 rounded-full">
+                  {/* Prev */}
+                  <Pressable
+                    disabled={page === 1}
+                    onPress={() => setPage((p) => p - 1)}
+                    className="px-2 py-1"
+                  >
+                    <Text
+                      className={`text-sm ${page === 1 ? "text-gray-300" : "text-gray-600"}`}
+                    >
+                      ◀
+                    </Text>
+                  </Pressable>
+
+                  {/* Page Numbers */}
+                  {Array.from({ length: totalPages }, (_, i) => {
+                    const p = i + 1;
+                    const isActive = p === page;
+                    return (
+                      <Pressable
+                        key={p}
+                        onPress={() => setPage(p)}
+                        className={`px-3 py-1 rounded-full ${isActive ? "bg-blue-500" : ""}`}
+                      >
+                        <Text
+                          className={`text-sm ${
+                            isActive
+                              ? "text-white font-semibold"
+                              : "text-gray-700"
+                          }`}
+                        >
+                          {p}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+
+                  {/* Next */}
+                  <Pressable
+                    disabled={page === totalPages}
+                    onPress={() => setPage((p) => p + 1)}
+                    className="px-2 py-1"
+                  >
+                    <Text
+                      className={`text-sm ${
+                        page === totalPages ? "text-gray-300" : "text-gray-600"
+                      }`}
+                    >
+                      ▶
+                    </Text>
+                  </Pressable>
+                </Div>
+              </Div>
+            </TableHead>
+          </TableRow>
+        </TableFooter>
+      </Table>
+    </Div>
   );
 }
-
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
