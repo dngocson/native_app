@@ -9,7 +9,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Text } from "@/components/ui/text";
-import { useRouter } from "expo-router";
+import type { RootStackParamList } from "@/types/navigation";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 
@@ -30,7 +32,8 @@ const TIME_VALUES = ["8:30", "12:30", "18:30"];
 const TIME_ICONS = ["🌅", "☀️", "🌙"];
 
 export default function HomeScreen() {
-  const router = useRouter();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [data, setData] = useState<Drug[]>(
     Array.from({ length: 6 }, (_, i) => ({
       name: `Drug #${i + 1}`,
@@ -52,7 +55,7 @@ export default function HomeScreen() {
     <ScrollView className="flex-1 bg-slate-900">
       <View className="px-4 pt-14 pb-8">
         {/* Bluetooth Banner */}
-        <Pressable onPress={() => router.push("/(stack)/ble-devices")}>
+        <Pressable onPress={() => navigation.navigate("BleDevices")}>
           <View className="flex-row items-center bg-blue-600 rounded-2xl px-4 py-4 mb-6 shadow-lg">
             <View className="bg-blue-500 rounded-xl p-3 mr-4">
               <Image
