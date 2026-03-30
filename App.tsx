@@ -19,6 +19,8 @@ import BleDevicesScreen from "./screens/ble-devices";
 import ExploreScreen from "./screens/explore";
 import HomeScreen from "./screens/home";
 
+import { useEffect } from "react";
+import { useBluetoothStore } from "./store/bluetoothStore";
 import { RootStackParamList, TabParamList } from "./types/navigation";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -26,6 +28,8 @@ const Tab = createBottomTabNavigator<TabParamList>();
 
 function TabNavigator() {
   const colorScheme = useColorScheme();
+  const init = useBluetoothStore((s) => s.init);
+  useEffect(() => init(), [init]);
 
   return (
     <Tab.Navigator

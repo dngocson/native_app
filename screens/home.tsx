@@ -9,6 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Text } from "@/components/ui/text";
+import { useBluetoothStore } from "@/store/bluetoothStore";
 import type { RootStackParamList } from "@/types/navigation";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -34,6 +35,8 @@ const TIME_ICONS = ["🌅", "☀️", "🌙"];
 export default function HomeScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { connectedDevice, disconnectDevice } = useBluetoothStore();
+
   const [data, setData] = useState<Drug[]>(
     Array.from({ length: 6 }, (_, i) => ({
       name: `Drug #${i + 1}`,
@@ -43,7 +46,7 @@ export default function HomeScreen() {
     })),
   );
 
-  const increment = (index: number, field: keyof Omit<Drug, "name">) => {
+  const increment = async (index: number, field: keyof Omit<Drug, "name">) => {
     setData((prev) =>
       prev.map((item, i) =>
         i === index ? { ...item, [field]: item[field] + 1 } : item,
@@ -55,31 +58,54 @@ export default function HomeScreen() {
     <ScrollView className="flex-1 bg-slate-900">
       <View className="px-4 pt-14 pb-8">
         {/* Bluetooth Banner */}
-        <Pressable onPress={() => navigation.navigate("BleDevices")}>
-          <View className="flex-row items-center bg-blue-600 rounded-2xl px-4 py-4 mb-6 shadow-lg">
-            <View className="bg-blue-500 rounded-xl p-3 mr-4">
-              <Image
-                size="sm"
-                source={{
-                  uri: require("@/assets/images/bluetooth-solid-icon.png"),
-                }}
-                alt="Bluetooth"
-                className="tint-white"
-              />
+        {!connectedDevice ? (
+          <Pressable onPress={() => navigation.navigate("BleDevices")}>
+            <View className="flex-row items-center bg-blue-600 rounded-2xl px-4 py-4 mb-6 shadow-lg">
+              <View className="bg-blue-500 rounded-xl p-3 mr-4">
+                <Image
+                  size="sm"
+                  source={{
+                    uri: require("@/assets/images/bluetooth-solid-icon.png"),
+                  }}
+                  alt="Bluetooth"
+                  className="tint-white"
+                />
+              </View>
+              <View className="flex-1">
+                <Text className="text-base text-blue-100 mb-1">
+                  Turn On Bluetooth and
+                </Text>
+                <Text className="text-lg font-bold text-white tracking-wide">
+                  PRESS TO CONNECT
+                </Text>
+              </View>
+              <View className="bg-white/20 rounded-full p-2">
+                <Text className="text-white text-lg">›</Text>
+              </View>
             </View>
-            <View className="flex-1">
-              <Text className="text-base text-blue-100 mb-1">
-                Turn On Bluetooth and
-              </Text>
-              <Text className="text-lg font-bold text-white tracking-wide">
-                PRESS TO CONNECT
-              </Text>
+          </Pressable>
+        ) : (
+          <Pressable onPress={() => disconnectDevice()}>
+            <View className="flex-row items-center bg-blue-600 rounded-2xl px-4 py-4 mb-6 shadow-lg">
+              <View className="bg-blue-500 rounded-xl p-3 mr-4">
+                <Image
+                  size="sm"
+                  source={{
+                    uri: require("@/assets/images/bluetooth-solid-icon.png"),
+                  }}
+                  alt="Bluetooth"
+                  className="tint-white"
+                />
+              </View>
+              <View className="flex-1">
+                <Text className="text-base text-blue-100 mb-1">Disconnect</Text>
+                <Text className="text-lg font-bold text-white tracking-wide">
+                  {connectedDevice.name}
+                </Text>
+              </View>
             </View>
-            <View className="bg-white/20 rounded-full p-2">
-              <Text className="text-white text-lg">›</Text>
-            </View>
-          </View>
-        </Pressable>
+          </Pressable>
+        )}
 
         {/* Drug Table */}
         <View className="rounded-2xl overflow-hidden bg-slate-800 shadow-lg">
