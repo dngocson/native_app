@@ -3,7 +3,7 @@ export type RootStackParamList = {
     | { screen: "Home"; params: { photoPath: string; timeSlot: string } }
     | undefined;
   BleDevices: undefined;
-  Camera: { timeSlot: string };
+  Camera: { drugId: string };
 };
 
 export type TabParamList = {

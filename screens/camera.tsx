@@ -12,7 +12,7 @@ import {
 type Props = NativeStackScreenProps<RootStackParamList, "Camera">;
 
 export default function CameraScreen({ navigation, route }: Props) {
-  const { timeSlot } = route.params;
+  const { drugId: timeSlot } = route.params;
   const device = useCameraDevice("back");
   const { hasPermission, requestPermission } = useCameraPermission();
   const cameraRef = useRef<Camera>(null);

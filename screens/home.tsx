@@ -23,6 +23,7 @@ import {
   ScrollView,
   View,
 } from "react-native";
+import slugify from "slugify";
 
 type Drug = {
   name: string;
@@ -114,9 +115,9 @@ export default function HomeScreen() {
   }, [route.params, navigation]);
 
   const handleLabelPress = (label: string) => {
-    const key = label.toLowerCase();
+    const key = slugify(label, { lower: true, strict: true, replacement: "-" });
     if (editing) {
-      navigation.navigate("Camera", { timeSlot: key });
+      navigation.navigate("Camera", { drugId: key });
     } else if (photos[key]) {
       setPreviewUri(photos[key]);
     }
@@ -195,26 +196,14 @@ export default function HomeScreen() {
                     className="bg-transparent px-1 py-3"
                     style={{ flex: 1, alignItems: "center" }}
                   >
-                    <Pressable
-                      onPress={() => handleLabelPress(label)}
-                      className="items-center"
-                    >
+                    <View className="items-center">
                       <Text className="text-base mb-1">{TIME_ICONS[i]}</Text>
                       <Text
-                        className={`text-[10px] font-bold uppercase tracking-wider ${
-                          photos[label.toLowerCase()]
-                            ? "text-emerald-400"
-                            : "text-slate-300"
-                        }`}
+                        className={`text-[10px] font-bold uppercase tracking-wider text-emerald-400`}
                       >
                         {label}
                       </Text>
-                      {photos[label.toLowerCase()] && (
-                        <Text className="text-emerald-400 text-[8px] mt-0.5">
-                          {editing ? "📷 Retake" : "🖼 View"}
-                        </Text>
-                      )}
-                    </Pressable>
+                    </View>
                   </TableHead>
                 ))}
               </TableRow>
@@ -230,11 +219,14 @@ export default function HomeScreen() {
                     className="px-3 py-2"
                     style={{ flex: 1, justifyContent: "center" }}
                   >
-                    <View className="bg-blue-500/15 rounded-lg px-3 py-2">
+                    <Pressable
+                      onPress={() => handleLabelPress(item.name)}
+                      className="bg-blue-500/15 rounded-lg px-3 py-2"
+                    >
                       <Text className="text-blue-300 text-sm font-bold">
                         {item.name}
                       </Text>
-                    </View>
+                    </Pressable>
                   </TableData>
                   {TIME_FIELDS.map((field) => (
                     <TableData
