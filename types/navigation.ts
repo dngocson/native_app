@@ -1,9 +1,12 @@
 export type RootStackParamList = {
-  Tabs: undefined;
+  Tabs:
+    | { screen: "Home"; params: { photoPath: string; timeSlot: string } }
+    | undefined;
   BleDevices: undefined;
+  Camera: { timeSlot: string };
 };
 
 export type TabParamList = {
-  Home: undefined;
+  Home: { photoPath: string; timeSlot: string } | undefined;
   Explore: undefined;
 };

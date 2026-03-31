@@ -16,6 +16,7 @@ import { HapticTab } from "./components/haptic-tab";
 import { IconSymbol } from "./components/ui/icon-symbol";
 import { Colors } from "./constants/theme";
 import BleDevicesScreen from "./screens/ble-devices";
+import CameraScreen from "./screens/camera";
 import ExploreScreen from "./screens/explore";
 import HomeScreen from "./screens/home";
 
@@ -88,6 +89,14 @@ export default function App() {
               title: "BLE Devices",
               headerStyle: { backgroundColor: "#0f172a" },
               headerTintColor: "#fff",
+            }}
+          />
+          <Stack.Screen
+            name="Camera"
+            component={CameraScreen}
+            options={{
+              headerShown: false,
+              animation: "slide_from_bottom",
             }}
           />
         </Stack.Navigator>

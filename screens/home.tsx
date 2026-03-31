@@ -10,11 +10,18 @@ import {
 } from "@/components/ui/table";
 import { Text } from "@/components/ui/text";
 import { useBluetoothStore } from "@/store/bluetoothStore";
-import type { RootStackParamList } from "@/types/navigation";
-import { useNavigation } from "@react-navigation/native";
+import type { RootStackParamList, TabParamList } from "@/types/navigation";
+import type { RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { useEffect, useState } from "react";
+import {
+  Modal,
+  Pressable,
+  Image as RNImage,
+  ScrollView,
+  View,
+} from "react-native";
 
 type Drug = {
   name: string;
@@ -35,8 +42,12 @@ const TIME_ICONS = ["🌅", "☀️", "🌙"];
 export default function HomeScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<RouteProp<TabParamList, "Home">>();
   const { connectedDevice, disconnectDevice } = useBluetoothStore();
 
+  const [editing, setEditing] = useState(false);
+  const [photos, setPhotos] = useState<Record<string, string>>({});
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [data, setData] = useState<Drug[]>(
     Array.from({ length: 6 }, (_, i) => ({
       name: `Drug #${i + 1}`,
@@ -52,6 +63,29 @@ export default function HomeScreen() {
         i === index ? { ...item, [field]: item[field] + 1 } : item,
       ),
     );
+  };
+
+  // Receive photo back from CameraScreen
+  useEffect(() => {
+    if (route.params?.photoPath && route.params?.timeSlot) {
+      setPhotos((prev) => ({
+        ...prev,
+        [route.params!.timeSlot]: route.params!.photoPath,
+      }));
+      navigation.setParams({
+        photoPath: undefined as any,
+        timeSlot: undefined as any,
+      });
+    }
+  }, [route.params, navigation]);
+
+  const handleLabelPress = (label: string) => {
+    const key = label.toLowerCase();
+    if (editing) {
+      navigation.navigate("Camera", { timeSlot: key });
+    } else if (photos[key]) {
+      setPreviewUri(photos[key]);
+    }
   };
 
   return (
@@ -127,12 +161,26 @@ export default function HomeScreen() {
                     className="bg-transparent px-1 py-3"
                     style={{ flex: 1, alignItems: "center" }}
                   >
-                    <View className="items-center">
+                    <Pressable
+                      onPress={() => handleLabelPress(label)}
+                      className="items-center"
+                    >
                       <Text className="text-base mb-1">{TIME_ICONS[i]}</Text>
-                      <Text className="text-slate-300 text-[10px] font-bold uppercase tracking-wider">
+                      <Text
+                        className={`text-[10px] font-bold uppercase tracking-wider ${
+                          photos[label.toLowerCase()]
+                            ? "text-emerald-400"
+                            : "text-slate-300"
+                        }`}
+                      >
                         {label}
                       </Text>
-                    </View>
+                      {photos[label.toLowerCase()] && (
+                        <Text className="text-emerald-400 text-[8px] mt-0.5">
+                          {editing ? "📷 Retake" : "🖼 View"}
+                        </Text>
+                      )}
+                    </Pressable>
                   </TableHead>
                 ))}
               </TableRow>
@@ -161,8 +209,9 @@ export default function HomeScreen() {
                       style={{ flex: 1, alignItems: "center" }}
                     >
                       <Pressable
-                        onPress={() => increment(index, field)}
-                        className="bg-slate-700 active:bg-slate-600 rounded-xl w-12 h-12 items-center justify-center"
+                        onPress={() => editing && increment(index, field)}
+                        disabled={!editing}
+                        className={`rounded-xl w-12 h-12 items-center justify-center ${editing ? "bg-slate-700 active:bg-slate-600" : "bg-slate-700/50"}`}
                       >
                         <Text className="text-white text-lg font-bold">
                           {item[field]}
@@ -199,25 +248,61 @@ export default function HomeScreen() {
         </View>
 
         {/* Action Buttons */}
-        <View className="mt-6 flex-row gap-4">
-          <Button
-            size="lg"
-            className="flex-1 bg-emerald-500 active:bg-emerald-600 rounded-xl h-14"
-          >
-            <ButtonText className="font-bold text-white text-base tracking-wide">
-              ✏️ EDIT
-            </ButtonText>
-          </Button>
-          <Button
-            size="lg"
-            className="flex-1 bg-rose-500 active:bg-rose-600 rounded-xl h-14"
-          >
-            <ButtonText className="font-bold text-white text-base tracking-wide">
-              💾 SAVE
-            </ButtonText>
-          </Button>
-        </View>
+        {connectedDevice && (
+          <View className="mt-6 flex-row gap-4">
+            {!editing ? (
+              <Button
+                size="lg"
+                onPress={() => setEditing(true)}
+                className="flex-1 bg-emerald-500 active:bg-emerald-600 rounded-xl h-14"
+              >
+                <ButtonText className="font-bold text-white text-base tracking-wide">
+                  ✏️ EDIT
+                </ButtonText>
+              </Button>
+            ) : (
+              <Button
+                size="lg"
+                onPress={() => setEditing(false)}
+                className="flex-1 bg-rose-500 active:bg-rose-600 rounded-xl h-14"
+              >
+                <ButtonText className="font-bold text-white text-base tracking-wide">
+                  💾 SAVE
+                </ButtonText>
+              </Button>
+            )}
+          </View>
+        )}
       </View>
+
+      {/* Image Preview Modal */}
+      <Modal
+        visible={!!previewUri}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewUri(null)}
+      >
+        <Pressable
+          onPress={() => setPreviewUri(null)}
+          className="flex-1 bg-black/80 items-center justify-center px-6"
+        >
+          {previewUri && (
+            <View className="w-full rounded-2xl overflow-hidden bg-slate-800">
+              <RNImage
+                source={{ uri: previewUri }}
+                className="w-full aspect-[3/4]"
+                resizeMode="cover"
+              />
+              <Pressable
+                onPress={() => setPreviewUri(null)}
+                className="py-4 items-center"
+              >
+                <Text className="text-white font-bold text-base">✕ Close</Text>
+              </Pressable>
+            </View>
+          )}
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }
