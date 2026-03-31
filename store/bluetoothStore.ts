@@ -21,6 +21,7 @@ type BluetoothState = {
   scanning: boolean;
   discoveredDevices: BluetoothDevice[];
   connectedDevice: BluetoothDevice | null;
+  connectingAddress: string | null;
   receivedMessages: ReceivedMessage[];
   error: string | null;
 
@@ -67,6 +68,7 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
   scanning: false,
   discoveredDevices: [],
   connectedDevice: null,
+  connectingAddress: null,
   receivedMessages: [],
   error: null,
   _dataSub: null,
@@ -170,12 +172,15 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
 
     // Remove existing data subscription before connecting to a new device
     _dataSub?.remove();
-    set({ _dataSub: null, error: null });
+    set({ _dataSub: null, error: null, connectingAddress: device.address });
 
     try {
       const connected = await device.connect();
       if (!connected) {
-        set({ error: `Failed to connect to ${device.name ?? device.address}` });
+        set({
+          error: `Failed to connect to ${device.name ?? device.address}`,
+          connectingAddress: null,
+        });
         return;
       }
 
@@ -194,9 +199,12 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
         }));
       });
 
-      set({ _dataSub: sub });
+      set({ _dataSub: sub, connectingAddress: null });
     } catch (err: any) {
-      set({ error: err.message ?? "Connection failed" });
+      set({
+        error: err.message ?? "Connection failed",
+        connectingAddress: null,
+      });
     }
   },
 

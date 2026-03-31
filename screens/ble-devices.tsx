@@ -15,6 +15,7 @@ export default function BleDevicesScreen() {
     scanning,
     discoveredDevices,
     connectedDevice,
+    connectingAddress,
     error,
     requestEnableBluetooth,
     startScan,
@@ -32,11 +33,16 @@ export default function BleDevicesScreen() {
 
   const renderDevice = ({ item }: { item: BluetoothDevice }) => {
     const isConnected = connectedDevice?.address === item.address;
+    const isConnecting = connectingAddress === item.address;
 
     return (
       <Pressable
         onPress={() => connectToDevice(item)}
+        disabled={!!connectingAddress}
         className="flex-row items-center bg-slate-800 rounded-xl px-4 py-4 mb-3"
+        style={
+          connectingAddress && !isConnecting ? { opacity: 0.5 } : undefined
+        }
       >
         <View className="bg-blue-500/20 rounded-full w-10 h-10 items-center justify-center mr-3">
           <Text className="text-blue-400 text-lg">📡</Text>
@@ -47,7 +53,18 @@ export default function BleDevicesScreen() {
           </Text>
           <Text className="text-slate-400 text-xs mt-0.5">{item.address}</Text>
         </View>
-        {isConnected ? (
+        {isConnecting ? (
+          <View className="flex-row items-center bg-amber-500/20 rounded-lg px-3 py-1">
+            <ActivityIndicator
+              color="#fbbf24"
+              size="small"
+              className="mr-1.5"
+            />
+            <Text className="text-amber-400 text-xs font-bold">
+              Connecting…
+            </Text>
+          </View>
+        ) : isConnected ? (
           <View className="bg-emerald-500/20 rounded-lg px-3 py-1">
             <Text className="text-emerald-400 text-xs font-bold">
               Connected
