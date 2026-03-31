@@ -10,11 +10,12 @@ import {
 } from "@/components/ui/table";
 import { Text } from "@/components/ui/text";
 import { useBluetoothStore } from "@/store/bluetoothStore";
+import { storage } from "@/store/storage";
 import type { RootStackParamList, TabParamList } from "@/types/navigation";
 import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Modal,
   Pressable,
@@ -39,6 +40,34 @@ const TIME_FIELDS: (keyof Omit<Drug, "name">)[] = [
 const TIME_VALUES = ["8:30", "12:30", "18:30"];
 const TIME_ICONS = ["🌅", "☀️", "🌙"];
 
+const STORAGE_KEY_DATA = "home:drugData";
+const STORAGE_KEY_PHOTOS = "home:photos";
+
+const loadDrugData = (): Drug[] => {
+  const json = storage.getString(STORAGE_KEY_DATA);
+  if (json) {
+    try {
+      return JSON.parse(json);
+    } catch {}
+  }
+  return Array.from({ length: 6 }, (_, i) => ({
+    name: `Drug #${i + 1}`,
+    morning: 0,
+    noon: 0,
+    evening: 0,
+  }));
+};
+
+const loadPhotos = (): Record<string, string> => {
+  const json = storage.getString(STORAGE_KEY_PHOTOS);
+  if (json) {
+    try {
+      return JSON.parse(json);
+    } catch {}
+  }
+  return {};
+};
+
 export default function HomeScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -46,24 +75,29 @@ export default function HomeScreen() {
   const { connectedDevice, disconnectDevice } = useBluetoothStore();
 
   const [editing, setEditing] = useState(false);
-  const [photos, setPhotos] = useState<Record<string, string>>({});
+  const [photos, setPhotos] = useState<Record<string, string>>(loadPhotos);
   const [previewUri, setPreviewUri] = useState<string | null>(null);
-  const [data, setData] = useState<Drug[]>(
-    Array.from({ length: 6 }, (_, i) => ({
-      name: `Drug #${i + 1}`,
-      morning: 0,
-      noon: 0,
-      evening: 0,
-    })),
-  );
+  const [data, setData] = useState<Drug[]>(loadDrugData);
 
-  const increment = async (index: number, field: keyof Omit<Drug, "name">) => {
-    setData((prev) =>
-      prev.map((item, i) =>
-        i === index ? { ...item, [field]: item[field] + 1 } : item,
-      ),
-    );
-  };
+  // Persist data to MMKV whenever it changes
+  useEffect(() => {
+    storage.set(STORAGE_KEY_DATA, JSON.stringify(data));
+  }, [data]);
+
+  useEffect(() => {
+    storage.set(STORAGE_KEY_PHOTOS, JSON.stringify(photos));
+  }, [photos]);
+
+  const increment = useCallback(
+    (index: number, field: keyof Omit<Drug, "name">) => {
+      setData((prev) =>
+        prev.map((item, i) =>
+          i === index ? { ...item, [field]: item[field] + 1 } : item,
+        ),
+      );
+    },
+    [],
+  );
 
   // Receive photo back from CameraScreen
   useEffect(() => {

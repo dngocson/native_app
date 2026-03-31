@@ -161,7 +161,7 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
   stopScan: async () => {
     try {
       await RNBluetoothClassic.cancelDiscovery();
-    } catch (_) {}
+    } catch {}
     set({ scanning: false });
   },
 
@@ -218,7 +218,7 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
       if (connectedDevice) {
         await connectedDevice.disconnect();
       }
-    } catch (_) {}
+    } catch {}
 
     set({ connectedDevice: null });
   },
