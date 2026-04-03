@@ -5,7 +5,6 @@ import {
   NavigationContainer,
 } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 
 import { GluestackUIProvider } from "./components/ui/gluestack-ui-provider";
@@ -17,7 +16,6 @@ import { IconSymbol } from "./components/ui/icon-symbol";
 import { Colors } from "./constants/theme";
 import BleDevicesScreen from "./screens/ble-devices";
 import CameraScreen from "./screens/camera";
-import ExploreScreen from "./screens/explore";
 import HomeScreen from "./screens/home";
 
 import { useEffect } from "react";
@@ -47,16 +45,6 @@ function TabNavigator() {
           title: "Home",
           tabBarIcon: ({ color }) => (
             <IconSymbol size={28} name="house.fill" color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Explore"
-        component={ExploreScreen}
-        options={{
-          title: "Explore",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="paperplane.fill" color={color} />
           ),
         }}
       />
@@ -100,7 +88,6 @@ export default function App() {
             }}
           />
         </Stack.Navigator>
-        <StatusBar style="auto" />
       </NavigationContainer>
     </GluestackUIProvider>
   );

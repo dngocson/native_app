@@ -25,6 +25,8 @@ import {
 } from "react-native";
 import slugify from "slugify";
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+
 type Drug = {
   name: string;
   morning: number;
@@ -32,25 +34,28 @@ type Drug = {
   evening: number;
 };
 
+// ─── Constants ───────────────────────────────────────────────────────────────
+
 const TIME_LABELS = ["MORNING", "NOON", "EVENING"] as const;
 const TIME_FIELDS: (keyof Omit<Drug, "name">)[] = [
   "morning",
   "noon",
   "evening",
 ];
-const TIME_VALUES = ["8:30", "12:30", "18:30"];
 const TIME_ICONS = ["🌅", "☀️", "🌙"];
+const DEFAULT_TIMES = ["08:30", "12:30", "18:30"];
 
 const STORAGE_KEY_DATA = "home:drugData";
 const STORAGE_KEY_PHOTOS = "home:photos";
+const STORAGE_KEY_TIME = "home:time";
+
+// ─── Storage helpers ─────────────────────────────────────────────────────────
 
 const loadDrugData = (): Drug[] => {
-  const json = storage.getString(STORAGE_KEY_DATA);
-  if (json) {
-    try {
-      return JSON.parse(json);
-    } catch {}
-  }
+  try {
+    const json = storage.getString(STORAGE_KEY_DATA);
+    if (json) return JSON.parse(json);
+  } catch {}
   return Array.from({ length: 6 }, (_, i) => ({
     name: `Drug #${i + 1}`,
     morning: 0,
@@ -60,14 +65,148 @@ const loadDrugData = (): Drug[] => {
 };
 
 const loadPhotos = (): Record<string, string> => {
-  const json = storage.getString(STORAGE_KEY_PHOTOS);
-  if (json) {
-    try {
-      return JSON.parse(json);
-    } catch {}
-  }
+  try {
+    const json = storage.getString(STORAGE_KEY_PHOTOS);
+    if (json) return JSON.parse(json);
+  } catch {}
   return {};
 };
+
+const loadTimes = (): string[] => {
+  try {
+    const json = storage.getString(STORAGE_KEY_TIME);
+    if (json) return JSON.parse(json);
+  } catch {}
+  return DEFAULT_TIMES;
+};
+
+// ─── Time helpers ─────────────────────────────────────────────────────────────
+
+const parseTime = (t: string) => {
+  const [h, m] = t.split(":").map(Number);
+  return { h, m };
+};
+
+const formatTime = (h: number, m: number) =>
+  `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+
+const nowAsTimeString = () => {
+  const now = new Date();
+  return formatTime(now.getHours(), now.getMinutes());
+};
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+type TimePickerModalProps = {
+  visible: boolean;
+  index: number | null;
+  times: string[];
+  onClose: () => void;
+  onChangeTime: (updater: (prev: string[]) => string[]) => void;
+};
+
+function TimePickerModal({
+  visible,
+  index,
+  times,
+  onClose,
+  onChangeTime,
+}: TimePickerModalProps) {
+  if (index === null) return null;
+
+  const { h, m } = parseTime(times[index]);
+
+  const adjust = (field: "h" | "m", delta: number) => {
+    onChangeTime((prev) => {
+      const { h: ph, m: pm } = parseTime(prev[index]);
+      const newH = field === "h" ? (ph + delta + 24) % 24 : ph;
+      const newM = field === "m" ? (pm + delta + 60) % 60 : pm;
+      return prev.map((t, i) => (i === index ? formatTime(newH, newM) : t));
+    });
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <Pressable
+        onPress={onClose}
+        className="flex-1 bg-black/80 items-center justify-center px-6"
+      >
+        <Pressable onPress={(e) => e.stopPropagation()}>
+          <View className="bg-slate-800 rounded-2xl p-6 w-72">
+            <Text className="text-white font-bold text-base text-center mb-1">
+              {TIME_ICONS[index]} {TIME_LABELS[index]}
+            </Text>
+            <Text className="text-slate-400 text-xs text-center mb-6">
+              Chỉnh thời gian uống thuốc
+            </Text>
+
+            <View className="flex-row items-center justify-center gap-4">
+              {/* Hours */}
+              <SpinnerColumn
+                value={h}
+                onUp={() => adjust("h", 1)}
+                onDown={() => adjust("h", -1)}
+              />
+
+              <Text className="text-white text-3xl font-bold mb-4">:</Text>
+
+              {/* Minutes */}
+              <SpinnerColumn
+                value={m}
+                onUp={() => adjust("m", 1)}
+                onDown={() => adjust("m", -1)}
+              />
+            </View>
+
+            <Pressable
+              onPress={onClose}
+              className="mt-6 bg-emerald-500 active:bg-emerald-600 rounded-xl py-3 items-center"
+            >
+              <Text className="text-white font-bold">Confirm</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+type SpinnerColumnProps = {
+  value: number;
+  onUp: () => void;
+  onDown: () => void;
+};
+
+function SpinnerColumn({ value, onUp, onDown }: SpinnerColumnProps) {
+  return (
+    <View className="items-center">
+      <Pressable
+        onPress={onUp}
+        className="bg-slate-700 rounded-xl w-14 h-10 items-center justify-center active:bg-slate-600 mb-2"
+      >
+        <Text className="text-white text-lg">▲</Text>
+      </Pressable>
+      <View className="bg-slate-700 rounded-xl w-14 h-14 items-center justify-center">
+        <Text className="text-white text-2xl font-bold">
+          {String(value).padStart(2, "0")}
+        </Text>
+      </View>
+      <Pressable
+        onPress={onDown}
+        className="bg-slate-700 rounded-xl w-14 h-10 items-center justify-center active:bg-slate-600 mt-2"
+      >
+        <Text className="text-white text-lg">▼</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
   const navigation =
@@ -76,11 +215,14 @@ export default function HomeScreen() {
   const { connectedDevice, disconnectDevice } = useBluetoothStore();
 
   const [editing, setEditing] = useState(false);
-  const [photos, setPhotos] = useState<Record<string, string>>(loadPhotos);
-  const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [data, setData] = useState<Drug[]>(loadDrugData);
+  const [photos, setPhotos] = useState<Record<string, string>>(loadPhotos);
+  const [times, setTimes] = useState<string[]>(loadTimes);
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [editingTimeIndex, setEditingTimeIndex] = useState<number | null>(null);
 
-  // Persist data to MMKV whenever it changes
+  // ── Persist ────────────────────────────────────────────────────────────────
+
   useEffect(() => {
     storage.set(STORAGE_KEY_DATA, JSON.stringify(data));
   }, [data]);
@@ -88,6 +230,12 @@ export default function HomeScreen() {
   useEffect(() => {
     storage.set(STORAGE_KEY_PHOTOS, JSON.stringify(photos));
   }, [photos]);
+
+  useEffect(() => {
+    storage.set(STORAGE_KEY_TIME, JSON.stringify(times));
+  }, [times]);
+
+  // ── Handlers ───────────────────────────────────────────────────────────────
 
   const increment = useCallback(
     (index: number, field: keyof Omit<Drug, "name">) => {
@@ -99,6 +247,23 @@ export default function HomeScreen() {
     },
     [],
   );
+
+  const handleHeaderPress = (i: number) => {
+    if (!editing) return;
+    setTimes((prev) =>
+      prev.map((t, idx) => (idx === i ? nowAsTimeString() : t)),
+    );
+    setEditingTimeIndex(i);
+  };
+
+  const handleLabelPress = (label: string) => {
+    const key = slugify(label, { lower: true, strict: true, replacement: "-" });
+    if (editing) {
+      navigation.navigate("Camera", { drugId: key });
+    } else if (photos[key]) {
+      setPreviewUri(photos[key]);
+    }
+  };
 
   // Receive photo back from CameraScreen
   useEffect(() => {
@@ -114,14 +279,7 @@ export default function HomeScreen() {
     }
   }, [route.params, navigation]);
 
-  const handleLabelPress = (label: string) => {
-    const key = slugify(label, { lower: true, strict: true, replacement: "-" });
-    if (editing) {
-      navigation.navigate("Camera", { drugId: key });
-    } else if (photos[key]) {
-      setPreviewUri(photos[key]);
-    }
-  };
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <ScrollView className="flex-1 bg-slate-900">
@@ -179,7 +337,6 @@ export default function HomeScreen() {
         {/* Drug Table */}
         <View className="rounded-2xl overflow-hidden bg-slate-800 shadow-lg">
           <Table className="w-full">
-            {/* Header */}
             <TableHeader>
               <TableRow className="bg-slate-700 border-b-0">
                 <TableHead
@@ -196,14 +353,20 @@ export default function HomeScreen() {
                     className="bg-transparent px-1 py-3"
                     style={{ flex: 1, alignItems: "center" }}
                   >
-                    <View className="items-center">
+                    <Pressable
+                      onPress={() => handleHeaderPress(i)}
+                      className="items-center"
+                    >
                       <Text className="text-base mb-1">{TIME_ICONS[i]}</Text>
-                      <Text
-                        className={`text-[10px] font-bold uppercase tracking-wider text-emerald-400`}
-                      >
+                      <Text className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
                         {label}
                       </Text>
-                    </View>
+                      {editing && (
+                        <Text className="text-[9px] text-slate-400 mt-0.5">
+                          {times[i]}
+                        </Text>
+                      )}
+                    </Pressable>
                   </TableHead>
                 ))}
               </TableRow>
@@ -226,8 +389,20 @@ export default function HomeScreen() {
                       <Text className="text-blue-300 text-sm font-bold">
                         {item.name}
                       </Text>
+                      {photos[
+                        slugify(item.name, {
+                          lower: true,
+                          strict: true,
+                          replacement: "-",
+                        })
+                      ] && (
+                        <Text className="text-emerald-400 text-[8px] mt-0.5">
+                          {editing ? "📷 Retake" : "🖼 View"}
+                        </Text>
+                      )}
                     </Pressable>
                   </TableData>
+
                   {TIME_FIELDS.map((field) => (
                     <TableData
                       key={field}
@@ -237,7 +412,11 @@ export default function HomeScreen() {
                       <Pressable
                         onPress={() => editing && increment(index, field)}
                         disabled={!editing}
-                        className={`rounded-xl w-12 h-12 items-center justify-center ${editing ? "bg-slate-700 active:bg-slate-600" : "bg-slate-700/50"}`}
+                        className={`rounded-xl w-12 h-12 items-center justify-center ${
+                          editing
+                            ? "bg-slate-700 active:bg-slate-600"
+                            : "bg-slate-700/50"
+                        }`}
                       >
                         <Text className="text-white text-lg font-bold">
                           {item[field]}
@@ -255,15 +434,15 @@ export default function HomeScreen() {
                     Time
                   </Text>
                 </TableData>
-                {TIME_VALUES.map((time) => (
+                {times.map((t, i) => (
                   <TableData
-                    key={time}
+                    key={i}
                     className="px-1 py-3"
                     style={{ flex: 1, alignItems: "center" }}
                   >
                     <View className="bg-blue-500/20 rounded-lg px-3 py-1.5">
                       <Text className="text-blue-300 text-sm font-bold">
-                        {time}
+                        {t}
                       </Text>
                     </View>
                   </TableData>
@@ -274,31 +453,29 @@ export default function HomeScreen() {
         </View>
 
         {/* Action Buttons */}
-        {connectedDevice && (
-          <View className="mt-6 flex-row gap-4">
-            {!editing ? (
-              <Button
-                size="lg"
-                onPress={() => setEditing(true)}
-                className="flex-1 bg-emerald-500 active:bg-emerald-600 rounded-xl h-14"
-              >
-                <ButtonText className="font-bold text-white text-base tracking-wide">
-                  ✏️ EDIT
-                </ButtonText>
-              </Button>
-            ) : (
-              <Button
-                size="lg"
-                onPress={() => setEditing(false)}
-                className="flex-1 bg-rose-500 active:bg-rose-600 rounded-xl h-14"
-              >
-                <ButtonText className="font-bold text-white text-base tracking-wide">
-                  💾 SAVE
-                </ButtonText>
-              </Button>
-            )}
-          </View>
-        )}
+        <View className="mt-6 flex-row gap-4">
+          {!editing ? (
+            <Button
+              size="lg"
+              onPress={() => setEditing(true)}
+              className="flex-1 bg-emerald-500 active:bg-emerald-600 rounded-xl h-14"
+            >
+              <ButtonText className="font-bold text-white text-base tracking-wide">
+                ✏️ EDIT
+              </ButtonText>
+            </Button>
+          ) : (
+            <Button
+              size="lg"
+              onPress={() => setEditing(false)}
+              className="flex-1 bg-rose-500 active:bg-rose-600 rounded-xl h-14"
+            >
+              <ButtonText className="font-bold text-white text-base tracking-wide">
+                💾 SAVE
+              </ButtonText>
+            </Button>
+          )}
+        </View>
       </View>
 
       {/* Image Preview Modal */}
@@ -329,6 +506,15 @@ export default function HomeScreen() {
           )}
         </Pressable>
       </Modal>
+
+      {/* Time Picker Modal */}
+      <TimePickerModal
+        visible={editingTimeIndex !== null}
+        index={editingTimeIndex}
+        times={times}
+        onClose={() => setEditingTimeIndex(null)}
+        onChangeTime={setTimes}
+      />
     </ScrollView>
   );
 }
