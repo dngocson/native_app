@@ -43,7 +43,7 @@ export function TimePickerModal({
         className="flex-1 bg-black/80 items-center justify-center px-6"
       >
         <Pressable onPress={(e) => e.stopPropagation()}>
-          <View className="bg-slate-800 rounded-2xl p-6 w-72">
+          <View className="bg-gray-700 rounded-none p-6 w-72 border border-gray-900">
             <Text className="text-white font-bold text-base text-center mb-1">
               {TIME_ICONS[index]} {TIME_LABELS[index]}
             </Text>
@@ -67,9 +67,9 @@ export function TimePickerModal({
 
             <Pressable
               onPress={onClose}
-              className="mt-6 bg-emerald-500 active:bg-emerald-600 rounded-xl py-3 items-center"
+              className="mt-6 bg-gray-400 active:bg-gray-500 rounded-none py-3 items-center border border-gray-600"
             >
-              <Text className="text-white font-bold">Confirm</Text>
+              <Text className="text-gray-900 font-bold">Confirm</Text>
             </Pressable>
           </View>
         </Pressable>

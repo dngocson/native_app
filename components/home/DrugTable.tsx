@@ -8,9 +8,8 @@ import {
 } from "@/components/ui/table";
 import { Text } from "@/components/ui/text";
 import { Pressable, View } from "react-native";
-import slugify from "slugify";
 import type { Drug, TimeSlotKey } from "./types";
-import { TIME_FIELDS, TIME_ICONS, TIME_LABELS } from "./types";
+import { TIME_FIELDS, TIME_LABELS } from "./types";
 
 type DrugTableProps = {
   data: Drug[];
@@ -32,89 +31,67 @@ export function DrugTable({
   onLabelPress,
 }: DrugTableProps) {
   return (
-    <View className="rounded-2xl overflow-hidden bg-slate-800 shadow-lg">
-      <Table className="w-full">
-        <TableHeader>
-          <TableRow className="bg-slate-700 border-b-0">
-            <TableHead className="bg-transparent px-3 py-3" style={{ flex: 1 }}>
-              <Text className="text-slate-400 text-xs font-semibold uppercase tracking-wider">
-                Medicine
-              </Text>
+    <View className="rounded-none overflow-hidden bg-gray-700 shadow-none border border-gray-700">
+      <Table className="w-full table-fixed">
+        <TableHeader className="mb-[0.3rem]">
+          <TableRow className={`border-b-0 bg-gray-500`}>
+            <TableHead className="px-3 py-3 text-center min-h-[52px]">
+              <View className="w-full h-full">
+                <View className=" p-2 w-full h-full items-center justify-center">
+                  <Text className="text-[12px] font-bold text-black uppercase tracking-wider ">
+                    Medicine
+                  </Text>
+                </View>
+              </View>
             </TableHead>
+
             {TIME_LABELS.map((label, i) => (
               <TableHead
                 key={label}
-                className="bg-transparent px-1 py-3"
-                style={{ flex: 1, alignItems: "center" }}
+                className="px-1 py-3 text-center min-h-[52px]"
               >
                 <Pressable
                   onPress={() => onHeaderPress(i)}
-                  className="items-center"
+                  className="w-full h-full"
                 >
-                  <Text className="text-base mb-1">{TIME_ICONS[i]}</Text>
-                  <Text className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
-                    {label}
-                  </Text>
-                  {editing && (
-                    <Text className="text-[9px] text-slate-400 mt-0.5">
-                      {times[i]}
+                  <View
+                    className={`${editing ? "bg-yellow-300" : "bg-gray-300"} p-2 w-full h-full items-center justify-center`}
+                  >
+                    <Text className="text-[12px] font-bold uppercase tracking-wider text-blue-700">
+                      {label}
                     </Text>
-                  )}
+                  </View>
                 </Pressable>
               </TableHead>
             ))}
           </TableRow>
         </TableHeader>
 
-        <TableBody>
+        <TableBody className="flex-col gap-1">
           {data.map((item, index) => (
-            <TableRow
-              key={index}
-              className={`border-b-0 ${
-                index % 2 === 0 ? "bg-slate-800" : "bg-slate-800/60"
-              }`}
-            >
-              <TableData
-                className="px-3 py-2"
-                style={{ flex: 1, justifyContent: "center" }}
-              >
+            <TableRow key={index} className="bg-gray-500">
+              <TableData className="px-3 py-2 text-center min-h-[52px]">
                 <Pressable
                   onPress={() => onLabelPress(item.name)}
-                  className="bg-blue-500/15 rounded-lg px-3 py-2"
+                  className="bg-gray-300 rounded-none h-full w-full items-center justify-center border border-gray-400"
                 >
-                  <Text className="text-blue-300 text-sm font-bold">
+                  <Text className="text-black text-lg font-bold">
                     {item.name}
                   </Text>
-                  {photos[
-                    slugify(item.name, {
-                      lower: true,
-                      strict: true,
-                      replacement: "-",
-                    })
-                  ] && (
-                    <Text className="text-emerald-400 text-[8px] mt-0.5">
-                      {editing ? "📷 Retake" : "🖼 View"}
-                    </Text>
-                  )}
                 </Pressable>
               </TableData>
 
               {TIME_FIELDS.map((field) => (
                 <TableData
                   key={field}
-                  className="px-1 py-2"
-                  style={{ flex: 1, alignItems: "center" }}
+                  className="px-1 py-2 text-center min-h-[52px]"
                 >
                   <Pressable
                     onPress={() => editing && onIncrement(index, field)}
                     disabled={!editing}
-                    className={`rounded-xl w-12 h-12 items-center justify-center ${
-                      editing
-                        ? "bg-slate-700 active:bg-slate-600"
-                        : "bg-slate-700/50"
-                    }`}
+                    className={`rounded-none w-12 h-12 items-center justify-center `}
                   >
-                    <Text className="text-white text-lg font-bold">
+                    <Text className={` text-lg font-bold text-black`}>
                       {item[field]}
                     </Text>
                   </Pressable>
@@ -124,20 +101,19 @@ export function DrugTable({
           ))}
 
           {/* Time Row */}
-          <TableRow className="bg-slate-700/50 border-b-0">
-            <TableData className="px-3 py-3" style={{ flex: 1 }}>
-              <Text className="text-slate-400 text-xs font-bold uppercase tracking-wider">
-                Time
-              </Text>
+          <TableRow className="bg-gray-500 border-b-0 mt-[0.1rem]">
+            <TableData className="px-3 py-3 min-h-[52px] text-center">
+              <View className="flex-1 h-full w-full flex items-center justify-center">
+                <Text className="text-white text-lg font-bold uppercase tracking-wider">
+                  Time 🕛
+                </Text>
+              </View>
             </TableData>
+
             {times.map((t, i) => (
-              <TableData
-                key={i}
-                className="px-1 py-3"
-                style={{ flex: 1, alignItems: "center" }}
-              >
-                <View className="bg-blue-500/20 rounded-lg px-3 py-1.5">
-                  <Text className="text-blue-300 text-sm font-bold">{t}</Text>
+              <TableData key={i} className="px-1 py-3 min-h-[52px] text-center">
+                <View className="bg-gray-300 rounded-none px-3 py-1.5 border border-gray-500">
+                  <Text className="text-blue-700 text-lg font-bold">{t}</Text>
                 </View>
               </TableData>
             ))}

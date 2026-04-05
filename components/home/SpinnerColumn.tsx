@@ -12,18 +12,18 @@ export function SpinnerColumn({ value, onUp, onDown }: SpinnerColumnProps) {
     <View className="items-center">
       <Pressable
         onPress={onUp}
-        className="bg-slate-700 rounded-xl w-14 h-10 items-center justify-center active:bg-slate-600 mb-2"
+        className="bg-gray-700 rounded-none w-14 h-10 items-center justify-center active:bg-gray-600 mb-2 border border-gray-800"
       >
         <Text className="text-white text-lg">▲</Text>
       </Pressable>
-      <View className="bg-slate-700 rounded-xl w-14 h-14 items-center justify-center">
+      <View className="bg-gray-700 rounded-none w-14 h-14 items-center justify-center border border-gray-800">
         <Text className="text-white text-2xl font-bold">
           {String(value).padStart(2, "0")}
         </Text>
       </View>
       <Pressable
         onPress={onDown}
-        className="bg-slate-700 rounded-xl w-14 h-10 items-center justify-center active:bg-slate-600 mt-2"
+        className="bg-gray-700 rounded-none w-14 h-10 items-center justify-center active:bg-gray-600 mt-2 border border-gray-800"
       >
         <Text className="text-white text-lg">▼</Text>
       </Pressable>

@@ -24,16 +24,16 @@ export function DoseHistory({ history, onClear }: DoseHistoryProps) {
   };
 
   return (
-    <View className="mt-6 bg-slate-800 rounded-2xl p-4">
+    <View className="mt-4 bg-gray-600 rounded-none p-4 border border-gray-800">
       <View className="flex-row items-center justify-between mb-3">
         <Text className="text-slate-400 text-xs font-bold uppercase tracking-wider">
           Dose History
         </Text>
         <Pressable
           onPress={handleClear}
-          className="bg-rose-500/20 rounded-lg px-3 py-1"
+          className="bg-gray-400 rounded-none px-3 py-1 border border-gray-500"
         >
-          <Text className="text-rose-400 text-xs font-bold">🗑 Clear</Text>
+          <Text className="text-gray-800 text-xs font-bold">🗑 Clear</Text>
         </Pressable>
       </View>
 
@@ -50,7 +50,7 @@ export function DoseHistory({ history, onClear }: DoseHistoryProps) {
         return (
           <View
             key={i}
-            className="flex-row items-start py-2 border-b border-slate-700 last:border-0"
+            className="flex-row items-start py-2 border-b border-gray-700 last:border-0"
           >
             <Text className="text-base mr-3 mt-0.5">{TIME_ICONS[slotIdx]}</Text>
             <View className="flex-1">

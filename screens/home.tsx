@@ -1,10 +1,8 @@
 import { BluetoothBanner } from "@/components/home/BluetoothBanner";
 import { DoseAlertModal } from "@/components/home/DoseAlertModal";
-import { DoseHistory } from "@/components/home/DoseHistory";
 import { DrugTable } from "@/components/home/DrugTable";
 import { TimePickerModal } from "@/components/home/TimePickerModal";
 import {
-  formatTime,
   loadDrugData,
   loadHistory,
   loadPhotos,
@@ -37,7 +35,6 @@ import * as Notifications from "expo-notifications";
 import * as Speech from "expo-speech";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Modal,
   Pressable,
   Image as RNImage,
@@ -185,13 +182,6 @@ export default function HomeScreen() {
     setHistory((prev) => [record, ...prev]);
     setDoseAlertIndex(null);
     Speech.stop();
-    Alert.alert(
-      "✓ Recorded",
-      `Medication logged at ${formatTime(
-        new Date().getHours(),
-        new Date().getMinutes(),
-      )}.`,
-    );
   };
 
   useEffect(() => {
@@ -210,7 +200,7 @@ export default function HomeScreen() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <ScrollView className="flex-1 bg-slate-900">
+    <ScrollView className="flex-1 bg-gray-400">
       <View className="px-4 pt-14 pb-8">
         {/* Bluetooth Banner */}
         <BluetoothBanner
@@ -231,15 +221,15 @@ export default function HomeScreen() {
         />
 
         {/* Dose History */}
-        <DoseHistory history={history} onClear={() => setHistory([])} />
+        {/* <DoseHistory history={history} onClear={() => setHistory([])} /> */}
 
         {/* Action Buttons */}
-        <View className="mt-6 flex-row gap-4">
+        <View className="mt-4 flex-row gap-4">
           {!editing ? (
             <Button
               size="lg"
               onPress={() => setEditing(true)}
-              className="flex-1 bg-emerald-500 active:bg-emerald-600 rounded-xl h-14"
+              className="flex-1 bg-black  rounded-none h-14 "
             >
               <ButtonText className="font-bold text-white text-base tracking-wide">
                 ✏️ EDIT
@@ -249,7 +239,7 @@ export default function HomeScreen() {
             <Button
               size="lg"
               onPress={handleSave}
-              className="flex-1 bg-rose-500 active:bg-rose-600 rounded-xl h-14"
+              className="flex-1 bg-green-600  rounded-none h-14 "
             >
               <ButtonText className="font-bold text-white text-base tracking-wide">
                 💾 SAVE
@@ -271,7 +261,7 @@ export default function HomeScreen() {
           className="flex-1 bg-black/80 items-center justify-center px-6"
         >
           {previewUri && (
-            <View className="w-full rounded-2xl overflow-hidden bg-slate-800">
+            <View className="w-full rounded-none overflow-hidden bg-gray-600">
               <RNImage
                 source={{ uri: previewUri }}
                 className="w-full aspect-[3/4]"

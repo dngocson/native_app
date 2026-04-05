@@ -40,7 +40,7 @@ export function DoseAlertModal({
         className="flex-1 bg-black/80 items-center justify-center px-6"
       >
         <Pressable onPress={(e) => e.stopPropagation()}>
-          <View className="bg-slate-800 rounded-2xl p-6 w-full max-w-sm">
+          <View className="bg-gray-700 rounded-none p-6 w-full max-w-sm border border-gray-900">
             {/* Header */}
             <View className="items-center mb-4">
               <Text className="text-4xl mb-2">{TIME_ICONS[slotIndex]}</Text>
@@ -53,7 +53,7 @@ export function DoseAlertModal({
             </View>
 
             {/* Drug list */}
-            <View className="bg-slate-700/50 rounded-xl p-4 mb-6">
+            <View className="bg-gray-500 rounded-none p-4 mb-6 border border-gray-800">
               {drugs.length === 0 ? (
                 <Text className="text-slate-400 text-sm text-center">
                   No medications scheduled for this time slot.
@@ -81,15 +81,15 @@ export function DoseAlertModal({
             <View className="flex-row gap-3">
               <Pressable
                 onPress={onDismiss}
-                className="flex-1 bg-slate-700 active:bg-slate-600 rounded-xl py-3 items-center"
+                className="flex-1 bg-gray-600 active:bg-gray-700 rounded-none py-3 items-center border border-gray-800"
               >
-                <Text className="text-slate-300 font-bold text-sm">Skip</Text>
+                <Text className="text-gray-200 font-bold text-sm">Skip</Text>
               </Pressable>
               <Pressable
                 onPress={() => onConfirm(slotKey, drugs)}
-                className="flex-2 bg-emerald-500 active:bg-emerald-600 rounded-xl py-3 px-6 items-center"
+                className="flex-2 bg-gray-400 active:bg-gray-500 rounded-none py-3 px-6 items-center border border-gray-600"
               >
-                <Text className="text-white font-bold text-sm">✓ Taken</Text>
+                <Text className="text-gray-900 font-bold text-sm">✓ Taken</Text>
               </Pressable>
             </View>
           </View>

@@ -35,15 +35,15 @@ export default function CameraScreen({ navigation, route }: Props) {
 
   if (!hasPermission) {
     return (
-      <View className="flex-1 bg-black items-center justify-center px-6">
+      <View className="flex-1 bg-gray-700 items-center justify-center px-6">
         <Text className="text-white text-lg text-center mb-4">
           Camera permission is required to take photos.
         </Text>
         <Pressable
           onPress={() => Linking.openSettings()}
-          className="bg-blue-600 rounded-xl px-6 py-3"
+          className="bg-gray-600 rounded-full px-6 py-3 border border-gray-800"
         >
-          <Text className="text-white font-bold">Open Settings</Text>
+          <Text className="text-gray-100 font-bold">Open Settings</Text>
         </Pressable>
       </View>
     );
@@ -51,14 +51,14 @@ export default function CameraScreen({ navigation, route }: Props) {
 
   if (!device) {
     return (
-      <View className="flex-1 bg-black items-center justify-center">
+      <View className="flex-1 bg-gray-700 items-center justify-center">
         <Text className="text-white text-lg">No camera device found</Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-black">
+    <View className="flex-1 bg-gray-700">
       <Camera
         ref={cameraRef}
         style={{ flex: 1 }}
@@ -73,17 +73,17 @@ export default function CameraScreen({ navigation, route }: Props) {
         <Pressable
           onPress={takePhoto}
           disabled={!ready}
-          className="w-20 h-20 rounded-full bg-white/90 active:bg-white/60 border-4 border-white items-center justify-center"
+          className="w-20 h-20 rounded-full bg-gray-200 active:bg-gray-300 border-4 border-gray-400 items-center justify-center"
           style={{ opacity: ready ? 1 : 0.4 }}
         >
-          <View className="w-16 h-16 rounded-full bg-white" />
+          <View className="w-16 h-16 rounded-full bg-gray-300 border border-gray-400" />
         </Pressable>
       </View>
 
       {/* Top bar label */}
       <View className="absolute top-14 left-0 right-0 items-center">
-        <View className="bg-black/50 rounded-full px-4 py-2">
-          <Text className="text-white font-bold text-sm">
+        <View className="bg-gray-900 rounded-full px-4 py-2 border border-gray-800">
+          <Text className="text-gray-100 font-bold text-sm">
             📷 Capture for {timeSlot.toUpperCase()}
           </Text>
         </View>
