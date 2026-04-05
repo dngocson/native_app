@@ -1,5 +1,8 @@
 import { Text } from "@/components/ui/text";
 import { useBluetoothStore } from "@/store/bluetoothStore";
+import { RootStackParamList } from "@/types/navigation";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   ActivityIndicator,
   Alert,
@@ -10,6 +13,8 @@ import {
 import { BluetoothDevice } from "react-native-bluetooth-classic";
 
 export default function BleDevicesScreen() {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {
     bluetoothEnabled,
     scanning,

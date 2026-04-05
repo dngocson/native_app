@@ -1,3 +1,4 @@
+import { navigate } from "@/utils/NavigationService";
 import { PermissionsAndroid, Platform } from "react-native";
 import RNBluetoothClassic, {
   BluetoothDevice,
@@ -200,6 +201,7 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
       });
 
       set({ _dataSub: sub, connectingAddress: null });
+      navigate("Tabs");
     } catch (err: any) {
       set({
         error: err.message ?? "Connection failed",

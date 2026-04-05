@@ -21,6 +21,7 @@ import HomeScreen from "./screens/home";
 import { useEffect } from "react";
 import { useBluetoothStore } from "./store/bluetoothStore";
 import { RootStackParamList, TabParamList } from "./types/navigation";
+import { navigationRef } from "./utils/NavigationService";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -58,6 +59,7 @@ export default function App() {
   return (
     <GluestackUIProvider mode="dark">
       <NavigationContainer
+        ref={navigationRef}
         theme={colorScheme === "dark" ? DarkTheme : DefaultTheme}
       >
         <Stack.Navigator

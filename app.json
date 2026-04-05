@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "iot",
-    "slug": "iot",
+    "name": "Pill Alert",
+    "slug": "pill-alert",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "iot",
+    "scheme": "pill-alert",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
