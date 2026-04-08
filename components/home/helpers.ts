@@ -1,4 +1,5 @@
 import { storage } from "@/store/storage";
+import { format, set } from "date-fns";
 import * as Notifications from "expo-notifications";
 import * as Speech from "expo-speech";
 import {
@@ -75,12 +76,12 @@ export const parseTime = (t: string) => {
 };
 
 export const formatTime = (h: number, m: number) =>
-  `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  format(
+    set(new Date(), { hours: h, minutes: m, seconds: 0, milliseconds: 0 }),
+    "HH:mm",
+  );
 
-export const nowAsTimeString = () => {
-  const now = new Date();
-  return formatTime(now.getHours(), now.getMinutes());
-};
+export const nowAsTimeString = () => format(new Date(), "HH:mm");
 
 // ─── Speech helpers ───────────────────────────────────────────────────────────
 

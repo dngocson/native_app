@@ -31,6 +31,7 @@ import type { RootStackParamList, TabParamList } from "@/types/navigation";
 import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { format } from "date-fns";
 import * as Notifications from "expo-notifications";
 import * as Speech from "expo-speech";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -121,7 +122,7 @@ export default function HomeScreen() {
 
       const now = nowAsTimeString();
       times.forEach((t, i) => {
-        const dateKey = `${new Date().toDateString()}-${i}`;
+        const dateKey = `${format(new Date(), "yyyy-MM-dd")}-${i}`;
         if (t === now && !alertedToday.current.has(dateKey)) {
           alertedToday.current.add(dateKey);
           setDoseAlertIndex(i);

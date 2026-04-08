@@ -1,6 +1,6 @@
 import { Text } from "@/components/ui/text";
+import { format } from "date-fns";
 import { Alert, Pressable, View } from "react-native";
-import { formatTime } from "./helpers";
 import type { DoseRecord } from "./types";
 import { TIME_FIELDS, TIME_ICONS } from "./types";
 
@@ -39,12 +39,8 @@ export function DoseHistory({ history, onClear }: DoseHistoryProps) {
 
       {history.slice(0, 5).map((record, i) => {
         const d = new Date(record.takenAt);
-        const timeStr = formatTime(d.getHours(), d.getMinutes());
-        const dateStr = d.toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        });
+        const timeStr = format(d, "HH:mm");
+        const dateStr = format(d, "MMM d, yyyy");
         const slotIdx = TIME_FIELDS.indexOf(record.slotKey);
 
         return (
