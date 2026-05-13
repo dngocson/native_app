@@ -8,5 +8,4 @@ export type RootStackParamList = {
 
 export type TabParamList = {
   Home: { photoPath: string; timeSlot: string } | undefined;
-  Explore: undefined;
 };

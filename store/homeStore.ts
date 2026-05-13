@@ -58,6 +58,7 @@ type HomeState = {
 
   // ── Internal (clock check) ──
   _alertedToday: Set<string>;
+  _lastAlertDate: string;
   checkDoseAlerts: () => void;
 };
 
@@ -127,17 +128,27 @@ export const useHomeStore = create<HomeState>()(
     },
 
     clearHistory: () => set({ history: [] }),
+    _lastAlertDate: format(new Date(), "yyyy-MM-dd"),
 
     // ── Clock check (called by interval) ──
     checkDoseAlerts: () => {
-      const { editing, times, savedData, _alertedToday } = get();
+      const { editing, times, savedData, _alertedToday, _lastAlertDate } =
+        get();
       if (editing) return;
+
+      const today = format(new Date(), "yyyy-MM-dd");
+
+      // Reset alerts at midnight
+      if (today !== _lastAlertDate) {
+        _alertedToday.clear();
+        set({ _lastAlertDate: today });
+      }
 
       const now = nowAsTimeString();
       times.forEach((t, i) => {
-        const dateKey = `${format(new Date(), "yyyy-MM-dd")}-${i}`;
-        if (t === now && !_alertedToday.has(dateKey)) {
-          _alertedToday.add(dateKey);
+        const key = `${i}`;
+        if (t === now && !_alertedToday.has(key)) {
+          _alertedToday.add(key);
           set({ doseAlertIndex: i });
           const drugs = savedData
             .filter((d) => d[TIME_FIELDS[i]] > 0)

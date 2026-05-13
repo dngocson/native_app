@@ -1,5 +1,6 @@
 import { Text } from "@/components/ui/text";
 import { useBluetoothStore } from "@/store/bluetoothStore";
+import { useEffect, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -24,12 +25,18 @@ export default function BleDevicesScreen() {
     clearError,
   } = useBluetoothStore();
 
-  // Show error as Alert when it changes
-  if (error) {
-    Alert.alert("Bluetooth Error", error, [
-      { text: "OK", onPress: clearError },
-    ]);
-  }
+  // Show error as Alert (side effect — must be in useEffect, not render)
+  const prevError = useRef<string | null>(null);
+  useEffect(() => {
+    if (error && error !== prevError.current) {
+      prevError.current = error;
+      Alert.alert("Bluetooth Error", error, [
+        { text: "OK", onPress: clearError },
+      ]);
+    } else if (!error) {
+      prevError.current = null;
+    }
+  }, [error, clearError]);
 
   const renderDevice = ({ item }: { item: Device }) => {
     const isConnected = connectedDevice?.id === item.id;

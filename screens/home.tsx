@@ -12,7 +12,7 @@ import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Notifications from "expo-notifications";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   Modal,
   Pressable,
@@ -67,13 +67,16 @@ export default function HomeScreen() {
     return () => sub.remove();
   }, [setDoseAlertIndex]);
 
-  // ── In-app clock ──────────────────────────────────────────────────────────
+  // ── In-app clock (stable ref to avoid interval recreation) ─────────────
+
+  const checkRef = useRef(checkDoseAlerts);
+  checkRef.current = checkDoseAlerts;
 
   useEffect(() => {
-    checkDoseAlerts();
-    const interval = setInterval(checkDoseAlerts, 30_000);
+    checkRef.current();
+    const interval = setInterval(() => checkRef.current(), 30_000);
     return () => clearInterval(interval);
-  }, [checkDoseAlerts]);
+  }, []);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -90,9 +93,9 @@ export default function HomeScreen() {
     if (route.params?.photoPath && route.params?.timeSlot) {
       setPhoto(route.params.timeSlot, route.params.photoPath);
       navigation.setParams({
-        photoPath: undefined as any,
-        timeSlot: undefined as any,
-      });
+        photoPath: undefined,
+        timeSlot: undefined,
+      } as any);
     }
   }, [route.params, navigation, setPhoto]);
 
@@ -118,9 +121,6 @@ export default function HomeScreen() {
           onHeaderPress={handleHeaderPress}
           onLabelPress={handleLabelPress}
         />
-
-        {/* Dose History */}
-        {/* <DoseHistory history={history} onClear={() => setHistory([])} /> */}
 
         {/* Action Buttons */}
         <View className="mt-4 flex-row gap-4">
