@@ -1,8 +1,5 @@
 import { Text } from "@/components/ui/text";
 import { useBluetoothStore } from "@/store/bluetoothStore";
-import { RootStackParamList } from "@/types/navigation";
-import { useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   ActivityIndicator,
   Alert,
@@ -10,17 +7,15 @@ import {
   Pressable,
   View,
 } from "react-native";
-import { BluetoothDevice } from "react-native-bluetooth-classic";
+import { Device } from "react-native-ble-plx";
 
 export default function BleDevicesScreen() {
-  const navigation =
-    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {
     bluetoothEnabled,
     scanning,
     discoveredDevices,
     connectedDevice,
-    connectingAddress,
+    connectingId,
     error,
     requestEnableBluetooth,
     startScan,
@@ -36,18 +31,16 @@ export default function BleDevicesScreen() {
     ]);
   }
 
-  const renderDevice = ({ item }: { item: BluetoothDevice }) => {
-    const isConnected = connectedDevice?.address === item.address;
-    const isConnecting = connectingAddress === item.address;
+  const renderDevice = ({ item }: { item: Device }) => {
+    const isConnected = connectedDevice?.id === item.id;
+    const isConnecting = connectingId === item.id;
 
     return (
       <Pressable
         onPress={() => connectToDevice(item)}
-        disabled={!!connectingAddress}
+        disabled={!!connectingId}
         className="flex-row items-center bg-gray-600 rounded-none px-4 py-4 mb-3 border border-gray-800"
-        style={
-          connectingAddress && !isConnecting ? { opacity: 0.5 } : undefined
-        }
+        style={connectingId && !isConnecting ? { opacity: 0.5 } : undefined}
       >
         <View className="bg-gray-400 rounded-none w-10 h-10 items-center justify-center mr-3 border border-gray-500">
           <Text className="text-gray-700 text-lg">📡</Text>
@@ -56,7 +49,7 @@ export default function BleDevicesScreen() {
           <Text className="text-white text-base font-bold">
             {item.name ?? "Unknown"}
           </Text>
-          <Text className="text-slate-400 text-xs mt-0.5">{item.address}</Text>
+          <Text className="text-slate-400 text-xs mt-0.5">{item.id}</Text>
         </View>
         {isConnecting ? (
           <View className="flex-row items-center bg-gray-300 rounded-none px-3 py-1 border border-gray-400">
@@ -102,7 +95,7 @@ export default function BleDevicesScreen() {
       {connectedDevice && (
         <View className="bg-gray-200 border border-gray-400 rounded-none px-4 py-3 mb-4">
           <Text className="text-gray-800 text-sm">
-            ✅ Connected to {connectedDevice.name ?? connectedDevice.address}
+            ✅ Connected to {connectedDevice.name ?? connectedDevice.id}
           </Text>
         </View>
       )}
@@ -132,7 +125,7 @@ export default function BleDevicesScreen() {
 
       <FlatList
         data={discoveredDevices}
-        keyExtractor={(item) => item.address}
+        keyExtractor={(item) => item.id}
         renderItem={renderDevice}
         showsVerticalScrollIndicator={false}
       />

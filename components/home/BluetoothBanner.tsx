@@ -1,10 +1,10 @@
 import { Image } from "@/components/ui/image";
 import { Text } from "@/components/ui/text";
 import { Pressable, View } from "react-native";
-import type { BluetoothDevice } from "react-native-bluetooth-classic";
+import type { Device } from "react-native-ble-plx";
 
 type BluetoothBannerProps = {
-  connectedDevice: BluetoothDevice | null;
+  connectedDevice: Device | null;
   onConnect: () => void;
   onDisconnect: () => void;
 };

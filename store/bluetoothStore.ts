@@ -1,30 +1,34 @@
 import { navigate } from "@/utils/NavigationService";
 import { PermissionsAndroid, Platform } from "react-native";
-import RNBluetoothClassic, {
-  BluetoothDevice,
-} from "react-native-bluetooth-classic";
+import { BleManager, Device, State, Subscription } from "react-native-ble-plx";
 import { create } from "zustand";
+
+// ─── BLE Manager singleton ───────────────────────────────────────────────────
+
+const manager = new BleManager();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ReceivedMessage = {
   id: string;
-  deviceAddress: string;
+  deviceId: string;
   data: string;
   timestamp: Date;
 };
-
-type Subscription = { remove: () => void };
 
 type BluetoothState = {
   // ── State ──
   bluetoothEnabled: boolean | null;
   scanning: boolean;
-  discoveredDevices: BluetoothDevice[];
-  connectedDevice: BluetoothDevice | null;
-  connectingAddress: string | null;
+  discoveredDevices: Device[];
+  connectedDevice: Device | null;
+  connectingId: string | null;
   receivedMessages: ReceivedMessage[];
   error: string | null;
+
+  // ── Discovered service/characteristic UUIDs (set after connect) ──
+  _serviceUUID: string | null;
+  _characteristicUUID: string | null;
 
   // ── Lifecycle ──
   /** Call once at app root (e.g. App.tsx) — registers BT on/off listeners */
@@ -34,15 +38,14 @@ type BluetoothState = {
   requestEnableBluetooth: () => Promise<boolean>;
   startScan: () => Promise<void>;
   stopScan: () => Promise<void>;
-  connectToDevice: (device: BluetoothDevice) => Promise<void>;
+  connectToDevice: (device: Device) => Promise<void>;
   disconnectDevice: () => Promise<void>;
   sendData: (data: string) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
 
   // ── Internal ──
-  _dataSub: Subscription | null;
-  _setDataSub: (sub: Subscription | null) => void;
+  _monitorSub: Subscription | null;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -69,57 +72,47 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
   scanning: false,
   discoveredDevices: [],
   connectedDevice: null,
-  connectingAddress: null,
+  connectingId: null,
   receivedMessages: [],
   error: null,
-  _dataSub: null,
-
-  _setDataSub: (sub) => set({ _dataSub: sub }),
+  _serviceUUID: null,
+  _characteristicUUID: null,
+  _monitorSub: null,
 
   // ── init: call ONCE at app root ──────────────────────────────────────────
   init: () => {
-    let enabledSub: Subscription | null = null;
-    let disabledSub: Subscription | null = null;
+    const stateSub = manager.onStateChange((state) => {
+      const powered = state === State.PoweredOn;
+      set({ bluetoothEnabled: powered });
 
-    // Check initial state
-    RNBluetoothClassic.isBluetoothEnabled()
-      .then((enabled) => set({ bluetoothEnabled: enabled }))
-      .catch(() => set({ bluetoothEnabled: false }));
-
-    try {
-      enabledSub = RNBluetoothClassic.onBluetoothEnabled(() => {
-        set({ bluetoothEnabled: true });
-      });
-
-      disabledSub = RNBluetoothClassic.onBluetoothDisabled(() => {
-        // Clean up data subscription if BT turns off mid-session
-        get()._dataSub?.remove();
+      if (!powered) {
+        // Clean up monitor subscription if BT turns off mid-session
+        get()._monitorSub?.remove();
+        manager.stopDeviceScan();
         set({
-          bluetoothEnabled: false,
           scanning: false,
           discoveredDevices: [],
           connectedDevice: null,
-          _dataSub: null,
+          _monitorSub: null,
+          _serviceUUID: null,
+          _characteristicUUID: null,
         });
-      });
-    } catch (err) {
-      console.warn("BT listeners failed — native module not ready:", err);
-    }
+      }
+    }, true); // `true` = emit current state immediately
 
     // Return cleanup for app root useEffect
     return () => {
-      enabledSub?.remove();
-      disabledSub?.remove();
-      get()._dataSub?.remove();
+      stateSub.remove();
+      get()._monitorSub?.remove();
     };
   },
 
   // ── requestEnableBluetooth ───────────────────────────────────────────────
   requestEnableBluetooth: async () => {
     try {
-      const enabled = await RNBluetoothClassic.requestBluetoothEnabled();
-      set({ bluetoothEnabled: enabled });
-      return enabled;
+      await manager.enable();
+      set({ bluetoothEnabled: true });
+      return true;
     } catch (err: any) {
       set({ error: err.message ?? "Failed to enable Bluetooth" });
       return false;
@@ -147,93 +140,134 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
 
     set({ discoveredDevices: [], scanning: true, error: null });
 
-    try {
-      const discovered: BluetoothDevice[] =
-        await RNBluetoothClassic.startDiscovery();
-      set({ discoveredDevices: discovered.filter((d) => !!d.name) });
-    } catch (err: any) {
-      set({ error: err.message ?? "Scan failed" });
-    } finally {
-      set({ scanning: false });
-    }
+    manager.startDeviceScan(null, null, (error, device) => {
+      if (error) {
+        set({ error: error.message ?? "Scan failed", scanning: false });
+        return;
+      }
+      if (device && device.name) {
+        set((state) => {
+          const exists = state.discoveredDevices.some(
+            (d) => d.id === device.id,
+          );
+          if (exists) return state;
+          return { discoveredDevices: [...state.discoveredDevices, device] };
+        });
+      }
+    });
   },
 
   // ── stopScan ─────────────────────────────────────────────────────────────
   stopScan: async () => {
-    try {
-      await RNBluetoothClassic.cancelDiscovery();
-    } catch {}
+    manager.stopDeviceScan();
     set({ scanning: false });
   },
 
   // ── connectToDevice ──────────────────────────────────────────────────────
   connectToDevice: async (device) => {
-    const { scanning, stopScan, _dataSub } = get();
+    const { scanning, stopScan, _monitorSub } = get();
     if (scanning) await stopScan();
 
-    // Remove existing data subscription before connecting to a new device
-    _dataSub?.remove();
-    set({ _dataSub: null, error: null, connectingAddress: device.address });
+    // Remove existing monitor subscription before connecting to a new device
+    _monitorSub?.remove();
+    set({ _monitorSub: null, error: null, connectingId: device.id });
 
     try {
-      const connected = await device.connect();
-      if (!connected) {
-        set({
-          error: `Failed to connect to ${device.name ?? device.address}`,
-          connectingAddress: null,
-        });
-        return;
+      const connected = await manager.connectToDevice(device.id);
+      const discovered =
+        await connected.discoverAllServicesAndCharacteristics();
+
+      // Find a writable + notifiable characteristic
+      const services = await discovered.services();
+      let serviceUUID: string | null = null;
+      let charUUID: string | null = null;
+
+      for (const svc of services) {
+        const chars = await discovered.characteristicsForService(svc.uuid);
+        for (const c of chars) {
+          if (c.isWritableWithResponse || c.isWritableWithoutResponse) {
+            serviceUUID = svc.uuid;
+            charUUID = c.uuid;
+          }
+          if (c.isNotifiable && serviceUUID) {
+            // Prefer a notifiable characteristic for monitoring
+            charUUID = c.uuid;
+            break;
+          }
+        }
+        if (serviceUUID && charUUID) break;
       }
 
-      set({ connectedDevice: device });
-
-      // Subscribe to incoming data — persists even if the screen unmounts
-      const sub = device.onDataReceived((event) => {
-        const message: ReceivedMessage = {
-          id: `${Date.now()}-${Math.random()}`,
-          deviceAddress: device.address,
-          data: event.data,
-          timestamp: new Date(),
-        };
-        set((state) => ({
-          receivedMessages: [...state.receivedMessages, message],
-        }));
+      set({
+        connectedDevice: discovered,
+        _serviceUUID: serviceUUID,
+        _characteristicUUID: charUUID,
       });
 
-      set({ _dataSub: sub, connectingAddress: null });
+      // Subscribe to incoming data if a notifiable characteristic was found
+      if (serviceUUID && charUUID) {
+        const sub = discovered.monitorCharacteristicForService(
+          serviceUUID,
+          charUUID,
+          (err, characteristic) => {
+            if (err || !characteristic?.value) return;
+            const message: ReceivedMessage = {
+              id: `${Date.now()}-${Math.random()}`,
+              deviceId: device.id,
+              data: atob(characteristic.value),
+              timestamp: new Date(),
+            };
+            set((state) => ({
+              receivedMessages: [...state.receivedMessages, message],
+            }));
+          },
+        );
+        set({ _monitorSub: sub });
+      }
+
+      set({ connectingId: null });
       navigate("Tabs");
     } catch (err: any) {
       set({
         error: err.message ?? "Connection failed",
-        connectingAddress: null,
+        connectingId: null,
       });
     }
   },
 
   // ── disconnectDevice ─────────────────────────────────────────────────────
   disconnectDevice: async () => {
-    const { connectedDevice, _dataSub } = get();
-    _dataSub?.remove();
-    set({ _dataSub: null });
+    const { connectedDevice, _monitorSub } = get();
+    _monitorSub?.remove();
+    set({ _monitorSub: null });
 
     try {
       if (connectedDevice) {
-        await connectedDevice.disconnect();
+        await manager.cancelDeviceConnection(connectedDevice.id);
       }
     } catch {}
 
-    set({ connectedDevice: null });
+    set({
+      connectedDevice: null,
+      _serviceUUID: null,
+      _characteristicUUID: null,
+    });
   },
 
   // ── sendData ─────────────────────────────────────────────────────────────
   sendData: async (data) => {
-    const { connectedDevice } = get();
-    if (!connectedDevice) {
-      set({ error: "No device connected." });
+    const { connectedDevice, _serviceUUID, _characteristicUUID } = get();
+    if (!connectedDevice || !_serviceUUID || !_characteristicUUID) {
+      set({ error: "No device connected or no writable characteristic." });
       return;
     }
     try {
-      await connectedDevice.write(data);
+      await manager.writeCharacteristicWithResponseForDevice(
+        connectedDevice.id,
+        _serviceUUID,
+        _characteristicUUID,
+        btoa(data),
+      );
     } catch (err: any) {
       set({ error: err.message ?? "Failed to send data" });
     }

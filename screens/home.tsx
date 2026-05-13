@@ -2,39 +2,17 @@ import { BluetoothBanner } from "@/components/home/BluetoothBanner";
 import { DoseAlertModal } from "@/components/home/DoseAlertModal";
 import { DrugTable } from "@/components/home/DrugTable";
 import { TimePickerModal } from "@/components/home/TimePickerModal";
-import {
-  loadDrugData,
-  loadHistory,
-  loadPhotos,
-  loadTimes,
-  nowAsTimeString,
-  requestNotificationPermission,
-  scheduleSlotNotifications,
-  setupNotificationHandler,
-  speakDoseReminder,
-} from "@/components/home/helpers";
-import {
-  STORAGE_KEY_DATA,
-  STORAGE_KEY_HISTORY,
-  STORAGE_KEY_PHOTOS,
-  STORAGE_KEY_TIME,
-  TIME_FIELDS,
-  type DoseRecord,
-  type Drug,
-  type TimeSlotKey,
-} from "@/components/home/types";
+import { setupNotificationHandler } from "@/components/home/helpers";
 import { Button, ButtonText } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { useBluetoothStore } from "@/store/bluetoothStore";
-import { storage } from "@/store/storage";
+import { useHomeStore } from "@/store/homeStore";
 import type { RootStackParamList, TabParamList } from "@/types/navigation";
 import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { format } from "date-fns";
 import * as Notifications from "expo-notifications";
-import * as Speech from "expo-speech";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import {
   Modal,
   Pressable,
@@ -54,53 +32,29 @@ export default function HomeScreen() {
   const route = useRoute<RouteProp<TabParamList, "Home">>();
   const { connectedDevice, disconnectDevice } = useBluetoothStore();
 
-  const [editing, setEditing] = useState(false);
+  const {
+    data,
+    savedData,
+    photos,
+    times,
+    editing,
+    previewUri,
+    editingTimeIndex,
+    doseAlertIndex,
+    setEditing,
+    increment,
+    handleSave,
+    handleHeaderPress,
+    setPreviewUri,
+    setEditingTimeIndex,
+    setDoseAlertIndex,
+    setTimes,
+    setPhoto,
+    handleDoseConfirm,
+    checkDoseAlerts,
+  } = useHomeStore();
 
-  const [data, setData] = useState<Drug[]>(loadDrugData);
-  const [savedData, setSavedData] = useState<Drug[]>(loadDrugData);
-  const savedDataRef = useRef<Drug[]>(savedData);
-
-  const [photos, setPhotos] = useState<Record<string, string>>(loadPhotos);
-  const [times, setTimes] = useState<string[]>(loadTimes);
-  const [previewUri, setPreviewUri] = useState<string | null>(null);
-  const [editingTimeIndex, setEditingTimeIndex] = useState<number | null>(null);
-  const [doseAlertIndex, setDoseAlertIndex] = useState<number | null>(null);
-  const [history, setHistory] = useState<DoseRecord[]>(loadHistory);
-
-  const alertedToday = useRef<Set<string>>(new Set());
-  const editingRef = useRef(editing);
-
-  useEffect(() => {
-    savedDataRef.current = savedData;
-  }, [savedData]);
-
-  useEffect(() => {
-    editingRef.current = editing;
-  }, [editing]);
-
-  useEffect(() => {
-    storage.set(STORAGE_KEY_DATA, JSON.stringify(savedData));
-  }, [savedData]);
-
-  useEffect(() => {
-    storage.set(STORAGE_KEY_PHOTOS, JSON.stringify(photos));
-  }, [photos]);
-
-  useEffect(() => {
-    storage.set(STORAGE_KEY_TIME, JSON.stringify(times));
-  }, [times]);
-
-  useEffect(() => {
-    storage.set(STORAGE_KEY_HISTORY, JSON.stringify(history));
-  }, [history]);
-
-  // ── Notifications ─────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    requestNotificationPermission().then((granted) => {
-      if (granted) scheduleSlotNotifications(times);
-    });
-  }, [times]);
+  // ── Notification response listener ────────────────────────────────────────
 
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener(
@@ -111,56 +65,17 @@ export default function HomeScreen() {
       },
     );
     return () => sub.remove();
-  }, []);
+  }, [setDoseAlertIndex]);
 
   // ── In-app clock ──────────────────────────────────────────────────────────
 
   useEffect(() => {
-    const check = () => {
-      // Suppress alerts while the user is actively editing
-      if (editingRef.current) return;
-
-      const now = nowAsTimeString();
-      times.forEach((t, i) => {
-        const dateKey = `${format(new Date(), "yyyy-MM-dd")}-${i}`;
-        if (t === now && !alertedToday.current.has(dateKey)) {
-          alertedToday.current.add(dateKey);
-          setDoseAlertIndex(i);
-          const drugs = savedDataRef.current
-            .filter((d) => d[TIME_FIELDS[i]] > 0)
-            .map((d) => ({ name: d.name, qty: d[TIME_FIELDS[i]] }));
-          speakDoseReminder(i, drugs);
-        }
-      });
-    };
-
-    check();
-    const interval = setInterval(check, 30_000);
+    checkDoseAlerts();
+    const interval = setInterval(checkDoseAlerts, 30_000);
     return () => clearInterval(interval);
-  }, [times]);
+  }, [checkDoseAlerts]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
-
-  const increment = useCallback((index: number, field: TimeSlotKey) => {
-    setData((prev) =>
-      prev.map((item, i) =>
-        i === index ? { ...item, [field]: item[field] + 1 } : item,
-      ),
-    );
-  }, []);
-
-  const handleSave = useCallback(() => {
-    setSavedData(data);
-    setEditing(false);
-  }, [data]);
-
-  const handleHeaderPress = (i: number) => {
-    if (!editing) return;
-    setTimes((prev) =>
-      prev.map((t, idx) => (idx === i ? nowAsTimeString() : t)),
-    );
-    setEditingTimeIndex(i);
-  };
 
   const handleLabelPress = (label: string) => {
     const key = slugify(label, { lower: true, strict: true, replacement: "-" });
@@ -171,32 +86,15 @@ export default function HomeScreen() {
     }
   };
 
-  const handleDoseConfirm = (
-    slotKey: TimeSlotKey,
-    drugs: { name: string; qty: number }[],
-  ) => {
-    const record: DoseRecord = {
-      takenAt: new Date().toISOString(),
-      slotKey,
-      drugs,
-    };
-    setHistory((prev) => [record, ...prev]);
-    setDoseAlertIndex(null);
-    Speech.stop();
-  };
-
   useEffect(() => {
     if (route.params?.photoPath && route.params?.timeSlot) {
-      setPhotos((prev) => ({
-        ...prev,
-        [route.params!.timeSlot]: route.params!.photoPath,
-      }));
+      setPhoto(route.params.timeSlot, route.params.photoPath);
       navigation.setParams({
         photoPath: undefined as any,
         timeSlot: undefined as any,
       });
     }
-  }, [route.params, navigation]);
+  }, [route.params, navigation, setPhoto]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
