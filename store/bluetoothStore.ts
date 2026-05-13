@@ -1,4 +1,5 @@
 import { navigate } from "@/utils/NavigationService";
+import { decode as atob, encode as btoa } from "base-64";
 import { PermissionsAndroid, Platform } from "react-native";
 import { BleManager, Device, State, Subscription } from "react-native-ble-plx";
 import { create } from "zustand";
@@ -6,6 +7,11 @@ import { create } from "zustand";
 // ─── BLE Manager singleton ───────────────────────────────────────────────────
 
 const manager = new BleManager();
+const SCAN_TIMEOUT_MS = 10_000;
+const MAX_RECEIVED_MESSAGES = 200;
+
+/** Return the best display name for a BLE device */
+const deviceName = (d: Device) => d.localName ?? d.name ?? null;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,8 +33,10 @@ type BluetoothState = {
   error: string | null;
 
   // ── Discovered service/characteristic UUIDs (set after connect) ──
-  _serviceUUID: string | null;
-  _characteristicUUID: string | null;
+  _writeServiceUUID: string | null;
+  _writeCharUUID: string | null;
+  _notifyServiceUUID: string | null;
+  _notifyCharUUID: string | null;
 
   // ── Lifecycle ──
   /** Call once at app root (e.g. App.tsx) — registers BT on/off listeners */
@@ -45,7 +53,10 @@ type BluetoothState = {
   clearError: () => void;
 
   // ── Internal ──
+  _connecting: boolean;
   _monitorSub: Subscription | null;
+  _disconnectSub: Subscription | null;
+  _scanTimer: ReturnType<typeof setTimeout> | null;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -75,9 +86,14 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
   connectingId: null,
   receivedMessages: [],
   error: null,
-  _serviceUUID: null,
-  _characteristicUUID: null,
+  _writeServiceUUID: null,
+  _writeCharUUID: null,
+  _notifyServiceUUID: null,
+  _notifyCharUUID: null,
+  _connecting: false,
   _monitorSub: null,
+  _disconnectSub: null,
+  _scanTimer: null,
 
   // ── init: call ONCE at app root ──────────────────────────────────────────
   init: () => {
@@ -88,14 +104,18 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
       if (!powered) {
         // Clean up monitor subscription if BT turns off mid-session
         get()._monitorSub?.remove();
+        get()._disconnectSub?.remove();
         manager.stopDeviceScan();
         set({
           scanning: false,
           discoveredDevices: [],
           connectedDevice: null,
           _monitorSub: null,
-          _serviceUUID: null,
-          _characteristicUUID: null,
+          _disconnectSub: null,
+          _writeServiceUUID: null,
+          _writeCharUUID: null,
+          _notifyServiceUUID: null,
+          _notifyCharUUID: null,
         });
       }
     }, true); // `true` = emit current state immediately
@@ -104,13 +124,16 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
     return () => {
       stateSub.remove();
       get()._monitorSub?.remove();
+      get()._disconnectSub?.remove();
     };
   },
 
   // ── requestEnableBluetooth ───────────────────────────────────────────────
   requestEnableBluetooth: async () => {
     try {
-      await manager.enable();
+      if (Platform.OS === "android") {
+        await manager.enable();
+      }
       set({ bluetoothEnabled: true });
       return true;
     } catch (err: any) {
@@ -140,18 +163,36 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
 
     set({ discoveredDevices: [], scanning: true, error: null });
 
+    // Auto-stop after SCAN_TIMEOUT_MS
+    const timer = setTimeout(() => {
+      manager.stopDeviceScan();
+      set({ scanning: false, _scanTimer: null });
+    }, SCAN_TIMEOUT_MS);
+    set({ _scanTimer: timer });
+
     manager.startDeviceScan(null, null, (error, device) => {
       if (error) {
-        set({ error: error.message ?? "Scan failed", scanning: false });
+        clearTimeout(timer);
+        set({
+          error: error.message ?? "Scan failed",
+          scanning: false,
+          _scanTimer: null,
+        });
         return;
       }
-      if (device && device.name) {
+      if (device && deviceName(device)) {
         set((state) => {
-          const exists = state.discoveredDevices.some(
+          const index = state.discoveredDevices.findIndex(
             (d) => d.id === device.id,
           );
-          if (exists) return state;
-          return { discoveredDevices: [...state.discoveredDevices, device] };
+          if (index >= 0) {
+            const updated = [...state.discoveredDevices];
+            updated[index] = device;
+            return { discoveredDevices: updated };
+          }
+          return {
+            discoveredDevices: [...state.discoveredDevices, device],
+          };
         });
       }
     });
@@ -159,56 +200,98 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
 
   // ── stopScan ─────────────────────────────────────────────────────────────
   stopScan: async () => {
+    const { _scanTimer } = get();
+    if (_scanTimer) clearTimeout(_scanTimer);
     manager.stopDeviceScan();
-    set({ scanning: false });
+    set({ scanning: false, _scanTimer: null });
   },
 
   // ── connectToDevice ──────────────────────────────────────────────────────
   connectToDevice: async (device) => {
-    const { scanning, stopScan, _monitorSub } = get();
-    if (scanning) await stopScan();
-
-    // Remove existing monitor subscription before connecting to a new device
-    _monitorSub?.remove();
-    set({ _monitorSub: null, error: null, connectingId: device.id });
+    // Prevent concurrent connection attempts
+    if (get()._connecting) return;
+    set({ _connecting: true });
 
     try {
+      const {
+        scanning,
+        stopScan,
+        _monitorSub,
+        _disconnectSub,
+        connectedDevice,
+      } = get();
+
+      // Check if already connected — both store-level and BLE-level
+      if (connectedDevice?.id === device.id) {
+        const isConnected = await manager.isDeviceConnected(device.id);
+        if (isConnected) {
+          set({
+            connectingId: null,
+            _connecting: false,
+          });
+
+          return;
+        }
+      }
+
+      if (scanning) await stopScan();
+
+      // Remove existing subscriptions before connecting to a new device
+      _monitorSub?.remove();
+      _disconnectSub?.remove();
+      set({
+        _monitorSub: null,
+        _disconnectSub: null,
+        error: null,
+        connectingId: device.id,
+      });
+
+      // Disconnect previous device if any
+      if (connectedDevice) {
+        try {
+          await manager.cancelDeviceConnection(connectedDevice.id);
+        } catch {}
+      }
+
       const connected = await manager.connectToDevice(device.id);
       const discovered =
         await connected.discoverAllServicesAndCharacteristics();
 
-      // Find a writable + notifiable characteristic
+      // Find writable + notifiable characteristics
       const services = await discovered.services();
-      let serviceUUID: string | null = null;
-      let charUUID: string | null = null;
+      let writeServiceUUID: string | null = null;
+      let writeUUID: string | null = null;
+      let notifyServiceUUID: string | null = null;
+      let notifyUUID: string | null = null;
 
       for (const svc of services) {
         const chars = await discovered.characteristicsForService(svc.uuid);
         for (const c of chars) {
           if (c.isWritableWithResponse || c.isWritableWithoutResponse) {
-            serviceUUID = svc.uuid;
-            charUUID = c.uuid;
+            writeServiceUUID = svc.uuid;
+            writeUUID = c.uuid;
           }
-          if (c.isNotifiable && serviceUUID) {
-            // Prefer a notifiable characteristic for monitoring
-            charUUID = c.uuid;
-            break;
+          if (c.isNotifiable) {
+            notifyServiceUUID = svc.uuid;
+            notifyUUID = c.uuid;
           }
         }
-        if (serviceUUID && charUUID) break;
+        if (writeUUID && notifyUUID) break;
       }
 
       set({
         connectedDevice: discovered,
-        _serviceUUID: serviceUUID,
-        _characteristicUUID: charUUID,
+        _writeServiceUUID: writeServiceUUID,
+        _writeCharUUID: writeUUID,
+        _notifyServiceUUID: notifyServiceUUID,
+        _notifyCharUUID: notifyUUID,
       });
 
       // Subscribe to incoming data if a notifiable characteristic was found
-      if (serviceUUID && charUUID) {
+      if (notifyServiceUUID && notifyUUID) {
         const sub = discovered.monitorCharacteristicForService(
-          serviceUUID,
-          charUUID,
+          notifyServiceUUID,
+          notifyUUID,
           (err, characteristic) => {
             if (err || !characteristic?.value) return;
             const message: ReceivedMessage = {
@@ -217,13 +300,35 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
               data: atob(characteristic.value),
               timestamp: new Date(),
             };
-            set((state) => ({
-              receivedMessages: [...state.receivedMessages, message],
-            }));
+            set((state) => {
+              const messages = [...state.receivedMessages, message];
+              return {
+                receivedMessages:
+                  messages.length > MAX_RECEIVED_MESSAGES
+                    ? messages.slice(-MAX_RECEIVED_MESSAGES)
+                    : messages,
+              };
+            });
           },
         );
         set({ _monitorSub: sub });
       }
+
+      // Listen for unexpected disconnects
+      const disconnectSub = manager.onDeviceDisconnected(device.id, () => {
+        get()._monitorSub?.remove();
+        set({
+          connectedDevice: null,
+          _monitorSub: null,
+          _disconnectSub: null,
+          _writeServiceUUID: null,
+          _writeCharUUID: null,
+          _notifyServiceUUID: null,
+          _notifyCharUUID: null,
+          error: `Device "${deviceName(device) ?? device.id}" disconnected.`,
+        });
+      });
+      set({ _disconnectSub: disconnectSub });
 
       set({ connectingId: null });
       navigate("Tabs");
@@ -232,14 +337,17 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
         error: err.message ?? "Connection failed",
         connectingId: null,
       });
+    } finally {
+      set({ _connecting: false });
     }
   },
 
   // ── disconnectDevice ─────────────────────────────────────────────────────
   disconnectDevice: async () => {
-    const { connectedDevice, _monitorSub } = get();
+    const { connectedDevice, _monitorSub, _disconnectSub } = get();
     _monitorSub?.remove();
-    set({ _monitorSub: null });
+    _disconnectSub?.remove();
+    set({ _monitorSub: null, _disconnectSub: null });
 
     try {
       if (connectedDevice) {
@@ -249,23 +357,25 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
 
     set({
       connectedDevice: null,
-      _serviceUUID: null,
-      _characteristicUUID: null,
+      _writeServiceUUID: null,
+      _writeCharUUID: null,
+      _notifyServiceUUID: null,
+      _notifyCharUUID: null,
     });
   },
 
   // ── sendData ─────────────────────────────────────────────────────────────
   sendData: async (data) => {
-    const { connectedDevice, _serviceUUID, _characteristicUUID } = get();
-    if (!connectedDevice || !_serviceUUID || !_characteristicUUID) {
+    const { connectedDevice, _writeServiceUUID, _writeCharUUID } = get();
+    if (!connectedDevice || !_writeServiceUUID || !_writeCharUUID) {
       set({ error: "No device connected or no writable characteristic." });
       return;
     }
     try {
       await manager.writeCharacteristicWithResponseForDevice(
         connectedDevice.id,
-        _serviceUUID,
-        _characteristicUUID,
+        _writeServiceUUID,
+        _writeCharUUID,
         btoa(data),
       );
     } catch (err: any) {

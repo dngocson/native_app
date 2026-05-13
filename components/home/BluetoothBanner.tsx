@@ -59,7 +59,7 @@ export function BluetoothBanner({
             Tap to disconnect
           </Text>
           <Text className="text-lg font-bold text-white tracking-wide">
-            {connectedDevice.name}
+            {connectedDevice.localName ?? connectedDevice.name}
           </Text>
         </View>
       </View>

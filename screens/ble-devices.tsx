@@ -47,7 +47,7 @@ export default function BleDevicesScreen() {
         </View>
         <View className="flex-1">
           <Text className="text-white text-base font-bold">
-            {item.name ?? "Unknown"}
+            {item.localName ?? item.name ?? "Unknown"}
           </Text>
           <Text className="text-slate-400 text-xs mt-0.5">{item.id}</Text>
         </View>
@@ -95,7 +95,10 @@ export default function BleDevicesScreen() {
       {connectedDevice && (
         <View className="bg-gray-200 border border-gray-400 rounded-none px-4 py-3 mb-4">
           <Text className="text-gray-800 text-sm">
-            ✅ Connected to {connectedDevice.name ?? connectedDevice.id}
+            ✅ Connected to{" "}
+            {connectedDevice.localName ??
+              connectedDevice.name ??
+              connectedDevice.id}
           </Text>
         </View>
       )}
