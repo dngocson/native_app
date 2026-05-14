@@ -30,7 +30,7 @@ export default function HomeScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<TabParamList, "Home">>();
-  const { connectedDevice, disconnectDevice } = useBluetoothStore();
+  const { connectedDevice, disconnectDevice, sendData } = useBluetoothStore();
 
   const {
     data,
@@ -145,6 +145,20 @@ export default function HomeScreen() {
               </ButtonText>
             </Button>
           )}
+        </View>
+
+        {/* Send Test String via Bluetooth */}
+        <View className="mt-4">
+          <Button
+            size="lg"
+            onPress={() => sendData("string test")}
+            disabled={!connectedDevice}
+            className={`rounded-none h-14 ${connectedDevice ? "bg-blue-600" : "bg-gray-500"}`}
+          >
+            <ButtonText className="font-bold text-white text-base tracking-wide">
+              📡 SEND TEST
+            </ButtonText>
+          </Button>
         </View>
       </View>
 
