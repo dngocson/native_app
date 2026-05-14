@@ -57,18 +57,20 @@ type HomeState = {
   clearHistory: () => void;
 
   // ── Internal (clock check) ──
-  _alertedToday: Set<string>;
+  _alertedToday: Record<string, boolean>;
   _lastAlertDate: string;
   checkDoseAlerts: () => void;
 };
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 
+const initialDrugData = loadDrugData();
+
 export const useHomeStore = create<HomeState>()(
   subscribeWithSelector((set, get) => ({
     // ── Initial state ──
-    data: loadDrugData(),
-    savedData: loadDrugData(),
+    data: initialDrugData,
+    savedData: initialDrugData,
     photos: loadPhotos(),
     times: loadTimes(),
     history: loadHistory(),
@@ -76,7 +78,7 @@ export const useHomeStore = create<HomeState>()(
     previewUri: null,
     editingTimeIndex: null,
     doseAlertIndex: null,
-    _alertedToday: new Set(),
+    _alertedToday: {},
 
     // ── Actions ──
     setEditing: (editing) => set({ editing }),
@@ -140,22 +142,26 @@ export const useHomeStore = create<HomeState>()(
 
       // Reset alerts at midnight
       if (today !== _lastAlertDate) {
-        _alertedToday.clear();
-        set({ _lastAlertDate: today });
+        set({ _alertedToday: {}, _lastAlertDate: today });
+        return;
       }
 
-      const now = nowAsTimeString();
-      times.forEach((t, i) => {
-        const key = `${i}`;
-        if (t === now && !_alertedToday.has(key)) {
-          _alertedToday.add(key);
-          set({ doseAlertIndex: i });
-          const drugs = savedData
-            .filter((d) => d[TIME_FIELDS[i]] > 0)
-            .map((d) => ({ name: d.name, qty: d[TIME_FIELDS[i]] }));
-          speakDoseReminder(i, drugs);
-        }
+      const currentMinute = nowAsTimeString();
+      const matchedIndex = times.findIndex(
+        (t, i) => t === currentMinute && !_alertedToday[`${i}`],
+      );
+      if (matchedIndex === -1) return;
+
+      const key = `${matchedIndex}`;
+      set({
+        _alertedToday: { ..._alertedToday, [key]: true },
+        doseAlertIndex: matchedIndex,
       });
+
+      const drugs = savedData
+        .filter((d) => d[TIME_FIELDS[matchedIndex]] > 0)
+        .map((d) => ({ name: d.name, qty: d[TIME_FIELDS[matchedIndex]] }));
+      speakDoseReminder(matchedIndex, drugs);
     },
   })),
 );
