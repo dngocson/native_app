@@ -11,7 +11,14 @@
     "jsEngine": "hermes",
 
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.pillalert",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "This app uses Bluetooth to communicate with your pill dispenser.",
+        "NSBluetoothPeripheralUsageDescription": "This app uses Bluetooth to communicate with your pill dispenser.",
+        "NSCameraUsageDescription": "This app uses the camera to take photos of medications.",
+        "NSMicrophoneUsageDescription": "This app may need microphone access for video recording."
+      }
     },
 
     "android": {
@@ -67,6 +74,19 @@
           "dark": {
             "backgroundColor": "#000000"
           }
+        }
+      ],
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "neverForLocation": true
+        }
+      ],
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "This app uses the camera to take photos of medications."
         }
       ]
     ],
