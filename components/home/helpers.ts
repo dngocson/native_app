@@ -1,5 +1,8 @@
 import { storage } from "@/store/storage";
 import { format, set } from "date-fns";
+import * as Battery from "expo-battery";
+import Constants from "expo-constants";
+import * as IntentLauncher from "expo-intent-launcher";
 import * as Notifications from "expo-notifications";
 import * as Speech from "expo-speech";
 import { Platform } from "react-native";
@@ -8,7 +11,9 @@ import {
   DOSE_NOTIFICATION_CHANNEL_ID,
   type DoseRecord,
   type Drug,
+  LEGACY_NOTIFICATION_CHANNEL_IDS,
   type SlotDayState,
+  STORAGE_KEY_BATTERY_PROMPT_SHOWN,
   STORAGE_KEY_DATA,
   STORAGE_KEY_FIRST_LAUNCH_DONE,
   STORAGE_KEY_HISTORY,
@@ -187,16 +192,52 @@ export async function syncSlotNotifications(times: string[]) {
 
 async function ensureDoseChannel() {
   if (Platform.OS !== "android") return;
+  for (const id of LEGACY_NOTIFICATION_CHANNEL_IDS) {
+    await Notifications.deleteNotificationChannelAsync(id);
+  }
   // Without a dedicated MAX channel, reminders land in the default channel,
   // which shows silently in the shade instead of as a heads-up alert.
   await Notifications.setNotificationChannelAsync(DOSE_NOTIFICATION_CHANNEL_ID, {
     name: "Dose reminders",
     importance: Notifications.AndroidImportance.MAX,
     sound: "default",
-    vibrationPattern: [0, 500, 250, 500],
+    enableVibrate: true,
+    vibrationPattern: [0, 500, 250, 500, 250, 500],
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    // Only honoured once the user grants "Do Not Disturb access".
     bypassDnd: true,
+    // Alarm stream: rings at alarm volume even when the ringer is silent.
+    audioAttributes: {
+      usage: Notifications.AndroidAudioUsage.ALARM,
+      contentType: Notifications.AndroidAudioContentType.SONIFICATION,
+    },
   });
+}
+
+/**
+ * Asks Android (once) to exempt the app from battery optimisation, so Doze
+ * and OEM power managers don't defer or kill the dose alarms. Call after the
+ * notification permission prompt so the two system dialogs don't overlap.
+ */
+export async function requestBatteryOptimizationExemption() {
+  if (Platform.OS !== "android") return;
+  if (storage.getBoolean(STORAGE_KEY_BATTERY_PROMPT_SHOWN)) return;
+  if (!(await Battery.isBatteryOptimizationEnabledAsync())) return;
+
+  const pkg = Constants.expoConfig?.android?.package;
+  if (!pkg) return;
+  storage.set(STORAGE_KEY_BATTERY_PROMPT_SHOWN, true);
+  try {
+    await IntentLauncher.startActivityAsync(
+      IntentLauncher.ActivityAction.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+      { data: `package:${pkg}` },
+    );
+  } catch {
+    // Some OEM ROMs strip this dialog — fall back to the settings list.
+    await IntentLauncher.startActivityAsync(
+      IntentLauncher.ActivityAction.IGNORE_BATTERY_OPTIMIZATION_SETTINGS,
+    ).catch(() => {});
+  }
 }
 
 export async function scheduleSlotNotifications(times: string[]) {
@@ -214,6 +255,8 @@ export async function scheduleSlotNotifications(times: string[]) {
         body: `${TIME_LABELS[i]} — ${times[i]}. Open the app to confirm.`,
         data: { slotIndex: i, slotKey: TIME_FIELDS[i] },
         priority: Notifications.AndroidNotificationPriority.MAX,
+        sound: "default",
+        interruptionLevel: "timeSensitive",
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,

@@ -49,7 +49,12 @@ export const DOSE_CATCH_UP_MINUTES = 180;
 export const DOSE_SNOOZE_MINUTES = 5;
 
 /** Android notification channel for dose reminders (high importance = heads-up). */
-export const DOSE_NOTIFICATION_CHANNEL_ID = "dose-reminders";
+// Android freezes a channel's sound/importance once created, so any change to
+// those settings needs a new id (old ones are deleted on next schedule).
+export const DOSE_NOTIFICATION_CHANNEL_ID = "dose-alarm-v2";
+export const LEGACY_NOTIFICATION_CHANNEL_IDS = ["dose-reminders"];
+
+export const STORAGE_KEY_BATTERY_PROMPT_SHOWN = "home:batteryPromptShown";
 
 /** In-app clock tick interval. */
 export const DOSE_CHECK_INTERVAL_MS = 30_000;

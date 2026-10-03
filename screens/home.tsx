@@ -7,6 +7,7 @@ import { DrugTable } from "@/components/home/DrugTable";
 import { LabelPickerModal } from "@/components/home/LabelPickerModal";
 import { TimePickerModal } from "@/components/home/TimePickerModal";
 import {
+  requestBatteryOptimizationExemption,
   setupNotificationHandler,
   syncSlotNotifications,
 } from "@/components/home/helpers";
@@ -126,7 +127,9 @@ export default function HomeScreen() {
   // user who never edited a time would otherwise have no notifications at all.
 
   useEffect(() => {
-    syncSlotNotifications(useHomeStore.getState().times);
+    syncSlotNotifications(useHomeStore.getState().times).then((granted) => {
+      if (granted) requestBatteryOptimizationExemption();
+    });
   }, []);
 
   // ── In-app clock (stable ref to avoid interval recreation) ─────────────
