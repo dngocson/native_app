@@ -48,5 +48,8 @@ export const DOSE_CATCH_UP_MINUTES = 180;
 /** How long a dismissed-but-unanswered alert stays quiet before re-appearing. */
 export const DOSE_SNOOZE_MINUTES = 5;
 
+/** Android notification channel for dose reminders (high importance = heads-up). */
+export const DOSE_NOTIFICATION_CHANNEL_ID = "dose-reminders";
+
 /** In-app clock tick interval. */
 export const DOSE_CHECK_INTERVAL_MS = 30_000;

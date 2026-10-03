@@ -188,6 +188,24 @@ notification mang `data: { slotIndex, slotKey }`).
    app khởi động (sửa nguyên nhân #5).
 2. Subscription của `times` → mỗi khi người dùng đổi giờ.
 
+#### Độ trễ notification trên Android (đã sửa)
+
+`expo-notifications` chỉ dùng alarm **chính xác** (`setExactAndAllowWhileIdle`)
+khi app có quyền exact alarm; nếu không, trên Android 12+ nó dùng
+`setAndAllowWhileIdle` — alarm **không chính xác**, OS gom nhóm và có thể nổ
+trễ vài phút (nặng hơn khi máy ở Doze). Trước đây manifest không có quyền này
+→ mọi nhắc nhở đều bị trễ.
+
+- `app.json` thêm `SCHEDULE_EXACT_ALARM`, `USE_EXACT_ALARM`,
+  `RECEIVE_BOOT_COMPLETED` (cần chạy lại `npx expo prebuild` vì `android/` là
+  thư mục generate).
+- `scheduleSlotNotifications()` tạo channel `dose-reminders` với importance
+  `MAX` (hiện heads-up, có âm thanh/rung, bỏ qua DND) và gắn `channelId` vào
+  trigger. Trước đây notification rơi vào channel mặc định nên chỉ hiện im lặng
+  trong thanh thông báo.
+- Một số hãng (Xiaomi, Oppo, Samsung…) vẫn có thể chặn alarm nếu app bị tối ưu
+  pin — người dùng cần tắt battery optimization cho app.
+
 ---
 
 ## 3. Danh sách thay đổi

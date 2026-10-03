@@ -2,8 +2,10 @@ import { storage } from "@/store/storage";
 import { format, set } from "date-fns";
 import * as Notifications from "expo-notifications";
 import * as Speech from "expo-speech";
+import { Platform } from "react-native";
 import {
   DEFAULT_TIMES,
+  DOSE_NOTIFICATION_CHANNEL_ID,
   type DoseRecord,
   type Drug,
   type SlotDayState,
@@ -183,7 +185,22 @@ export async function syncSlotNotifications(times: string[]) {
   return true;
 }
 
+async function ensureDoseChannel() {
+  if (Platform.OS !== "android") return;
+  // Without a dedicated MAX channel, reminders land in the default channel,
+  // which shows silently in the shade instead of as a heads-up alert.
+  await Notifications.setNotificationChannelAsync(DOSE_NOTIFICATION_CHANNEL_ID, {
+    name: "Dose reminders",
+    importance: Notifications.AndroidImportance.MAX,
+    sound: "default",
+    vibrationPattern: [0, 500, 250, 500],
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    bypassDnd: true,
+  });
+}
+
 export async function scheduleSlotNotifications(times: string[]) {
+  await ensureDoseChannel();
   await Notifications.cancelAllScheduledNotificationsAsync();
 
   for (let i = 0; i < times.length; i++) {
@@ -196,11 +213,13 @@ export async function scheduleSlotNotifications(times: string[]) {
         title: `${TIME_ICONS[i]} Time to take your medication!`,
         body: `${TIME_LABELS[i]} — ${times[i]}. Open the app to confirm.`,
         data: { slotIndex: i, slotKey: TIME_FIELDS[i] },
+        priority: Notifications.AndroidNotificationPriority.MAX,
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour: h,
         minute: m,
+        channelId: DOSE_NOTIFICATION_CHANNEL_ID,
       },
     });
   }
