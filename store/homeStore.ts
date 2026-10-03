@@ -68,6 +68,8 @@ type HomeState = {
   noteModal: { key: string; label: string; mode: "edit" | "view" } | null;
   /** Shown from `handleSave()` when no BLE device is connected. */
   bluetoothRequiredPromptVisible: boolean;
+  /** True while `handleSave()` is writing the plan to the board over BLE. */
+  saving: boolean;
 
   // ── Actions ──
   setEditing: (editing: boolean) => void;
@@ -156,6 +158,7 @@ export const useHomeStore = create<HomeState>()(
     labelPicker: null,
     noteModal: null,
     bluetoothRequiredPromptVisible: false,
+    saving: false,
     _dataBeforeEdit: null,
     _slotState: loadSlotState(),
     _snoozedUntil: {},
@@ -186,6 +189,7 @@ export const useHomeStore = create<HomeState>()(
       })),
 
     handleSave: async () => {
+      if (get().saving) return;
       const { connectedDevice, sendPayload } = useBluetoothStore.getState();
 
       // No point committing drug quantities the device will never receive —
@@ -196,12 +200,8 @@ export const useHomeStore = create<HomeState>()(
       }
 
       const { data, times } = get();
-      set({
-        savedData: data,
-        editing: false,
-        _dataBeforeEdit: null,
-      });
-      await sendPayload({
+      set({ saving: true });
+      const sent = await sendPayload({
         type: BLE_DATA_TYPE.EVENT,
         message: {
           name: BLE_EVENT_TYPE.SETTING_ALARM_TIME,
@@ -209,6 +209,19 @@ export const useHomeStore = create<HomeState>()(
           drugslot: data,
           timezoneOffsetMinutes: -new Date().getTimezoneOffset(),
         },
+      });
+
+      // Only commit what the board actually received; on failure stay in
+      // edit mode so the user can retry (the BLE error is in bluetoothStore).
+      if (!sent) {
+        set({ saving: false });
+        return;
+      }
+      set({
+        saving: false,
+        savedData: data,
+        editing: false,
+        _dataBeforeEdit: null,
       });
     },
     handleHeaderPress: (i) => {

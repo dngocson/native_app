@@ -59,7 +59,8 @@ type BluetoothState = {
   stopScan: () => Promise<void>;
   connectToDevice: (device: Device) => Promise<void>;
   disconnectDevice: () => Promise<void>;
-  sendPayload: (payload: BlePayload) => Promise<void>;
+  /** Resolves true once the write is acknowledged, false on any failure. */
+  sendPayload: (payload: BlePayload) => Promise<boolean>;
   clearMessages: () => void;
   clearError: () => void;
 
@@ -392,7 +393,7 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
     const { connectedDevice, _writeServiceUUID, _writeCharUUID } = get();
     if (!connectedDevice || !_writeServiceUUID || !_writeCharUUID) {
       set({ error: "No device connected or no writable characteristic." });
-      return;
+      return false;
     }
 
     try {
@@ -407,8 +408,10 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
         _writeCharUUID,
         btoa(JSON.stringify(message)),
       );
+      return true;
     } catch (err: any) {
       set({ error: err.message ?? "Failed to send data" });
+      return false;
     }
   },
 

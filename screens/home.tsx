@@ -14,7 +14,7 @@ import {
   DOSE_CATCH_UP_MINUTES,
   DOSE_CHECK_INTERVAL_MS,
 } from "@/components/home/types";
-import { Button, ButtonText } from "@/components/ui/button";
+import { Button, ButtonSpinner, ButtonText } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { useBluetoothStore } from "@/store/bluetoothStore";
 import { useHomeStore } from "@/store/homeStore";
@@ -56,6 +56,7 @@ export default function HomeScreen() {
     labelPicker,
     noteModal,
     bluetoothRequiredPromptVisible,
+    saving,
     setEditing,
     increment,
     decrement,
@@ -229,10 +230,12 @@ export default function HomeScreen() {
               <Button
                 size="lg"
                 onPress={handleSave}
-                className={`flex-1 rounded-2xl bg-amber-300 h-14 shadow-sm active:bg-blue-500 text-black  data-[active=true]:bg-amber-200 data-[active=true]:text-white`}
+                isDisabled={saving}
+                className={`flex-1 rounded-2xl bg-amber-300 h-14 shadow-sm active:bg-blue-500 text-black  data-[active=true]:bg-amber-200 data-[active=true]:text-white data-[disabled=true]:opacity-70`}
               >
+                {saving && <ButtonSpinner color="#000" />}
                 <ButtonText className="font-bold text-black text-base tracking-wide data-[active=true]:text-white">
-                  ✓ Save changes
+                  {saving ? "Sending to board…" : "✓ Save changes"}
                 </ButtonText>
               </Button>
             )}
