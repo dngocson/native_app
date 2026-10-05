@@ -205,12 +205,10 @@ export const useHomeStore = create<HomeState>()(
       }
 
       const { data, times } = get();
-      set({
-        savedData: data,
-        editing: false,
-        saving: true,
-        _dataBeforeEdit: null,
-      });
+      // Stay in edit mode while sending: the screen swaps Save ↔ Edit on
+      // `editing`, so flipping it here would unmount the disabled/spinner
+      // Save button and expose a clickable "Edit plan" mid-request.
+      set({ saving: true });
       const sent = await sendPayload({
         type: BLE_DATA_TYPE.EVENT,
         message: {
@@ -220,9 +218,6 @@ export const useHomeStore = create<HomeState>()(
           timezoneOffsetMinutes: -new Date().getTimezoneOffset(),
         },
       });
-
-      // Only commit what the board actually received; on failure stay in
-      // edit mode so the user can retry (the BLE error is in bluetoothStore).
 
       set({
         saving: false,
