@@ -4,6 +4,7 @@ import { DoseAlertModal } from "@/components/home/DoseAlertModal";
 import { DoseHistory } from "@/components/home/DoseHistory";
 import { DrugNoteModal } from "@/components/home/DrugNoteModal";
 import { DrugTable } from "@/components/home/DrugTable";
+import { SendSuccessModal } from "@/components/home/SendSuccessModal";
 import { LabelPickerModal } from "@/components/home/LabelPickerModal";
 import { TimePickerModal } from "@/components/home/TimePickerModal";
 import {
@@ -58,6 +59,7 @@ export default function HomeScreen() {
     noteModal,
     bluetoothRequiredPromptVisible,
     saving,
+    sendSuccessVisible,
     setEditing,
     increment,
     decrement,
@@ -76,6 +78,7 @@ export default function HomeScreen() {
     goConnectBluetooth,
     revertPendingEdit,
     dismissBluetoothRequiredPrompt,
+    closeSendSuccessModal,
     handleDoseConfirm,
     handleDoseSkip,
     snoozeDoseAlert,
@@ -310,6 +313,12 @@ export default function HomeScreen() {
         onConnect={goConnectBluetooth}
         onRevert={revertPendingEdit}
         onClose={dismissBluetoothRequiredPrompt}
+      />
+
+      {/* Send Success Modal */}
+      <SendSuccessModal
+        visible={sendSuccessVisible}
+        onClose={closeSendSuccessModal}
       />
 
       {/* Dose Alert Modal */}

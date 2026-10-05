@@ -70,6 +70,8 @@ type HomeState = {
   bluetoothRequiredPromptVisible: boolean;
   /** True while `handleSave()` is writing the plan to the board over BLE. */
   saving: boolean;
+  /** Shown when medication data is successfully sent to the BLE device. */
+  sendSuccessVisible: boolean;
 
   // ── Actions ──
   setEditing: (editing: boolean) => void;
@@ -118,6 +120,8 @@ type HomeState = {
   revertPendingEdit: () => void;
   /** Tap-outside / back — just hides the prompt, keeps editing untouched. */
   dismissBluetoothRequiredPrompt: () => void;
+  /** Close the success notification modal shown after a BLE write succeeds. */
+  closeSendSuccessModal: () => void;
 
   // ── Internal ──
   /** Snapshot of `data` taken when Edit was pressed — lets "Undo changes"
@@ -159,6 +163,7 @@ export const useHomeStore = create<HomeState>()(
     noteModal: null,
     bluetoothRequiredPromptVisible: false,
     saving: false,
+    sendSuccessVisible: false,
     _dataBeforeEdit: null,
     _slotState: loadSlotState(),
     _snoozedUntil: {},
@@ -200,7 +205,12 @@ export const useHomeStore = create<HomeState>()(
       }
 
       const { data, times } = get();
-      set({ saving: true });
+      set({
+        savedData: data,
+        editing: false,
+        saving: true,
+        _dataBeforeEdit: null,
+      });
       const sent = await sendPayload({
         type: BLE_DATA_TYPE.EVENT,
         message: {
@@ -213,16 +223,16 @@ export const useHomeStore = create<HomeState>()(
 
       // Only commit what the board actually received; on failure stay in
       // edit mode so the user can retry (the BLE error is in bluetoothStore).
-      if (!sent) {
-        set({ saving: false });
-        return;
-      }
+
       set({
         saving: false,
         savedData: data,
         editing: false,
         _dataBeforeEdit: null,
       });
+      if (sent) {
+        set({ sendSuccessVisible: true });
+      }
     },
     handleHeaderPress: (i) => {
       const { editing } = get();
@@ -247,7 +257,11 @@ export const useHomeStore = create<HomeState>()(
       set((state) => ({ notes: { ...state.notes, [key]: note } })),
 
     openLabelPicker: (label) => {
-      const key = slugify(label, { lower: true, strict: true, replacement: "-" });
+      const key = slugify(label, {
+        lower: true,
+        strict: true,
+        replacement: "-",
+      });
       set({ labelPicker: { key, label } });
     },
     closeLabelPicker: () => set({ labelPicker: null }),
@@ -261,6 +275,8 @@ export const useHomeStore = create<HomeState>()(
       if (photos[key]) set({ previewUri: photos[key] });
       return null;
     },
+
+    closeSendSuccessModal: () => set({ sendSuccessVisible: false }),
 
     pickNoteFromLabelPicker: () => {
       const { labelPicker, editing } = get();
