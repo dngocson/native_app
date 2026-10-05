@@ -56,5 +56,12 @@ export const LEGACY_NOTIFICATION_CHANNEL_IDS = ["dose-reminders"];
 
 export const STORAGE_KEY_BATTERY_PROMPT_SHOWN = "home:batteryPromptShown";
 
+/** Give up waiting for the board to acknowledge a BLE write after this. */
+export const SEND_TIMEOUT_MS = 10_000;
+
+/** Wait for a closing Modal to finish dismissing before presenting the next
+ * one — iOS silently drops a Modal presented mid-dismissal. */
+export const MODAL_SETTLE_MS = 400;
+
 /** In-app clock tick interval. */
 export const DOSE_CHECK_INTERVAL_MS = 30_000;

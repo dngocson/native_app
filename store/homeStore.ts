@@ -16,6 +16,8 @@ import {
 import {
   DOSE_CATCH_UP_MINUTES,
   DOSE_SNOOZE_MINUTES,
+  MODAL_SETTLE_MS,
+  SEND_TIMEOUT_MS,
   STORAGE_KEY_DATA,
   STORAGE_KEY_HISTORY,
   STORAGE_KEY_NOTES,
@@ -72,6 +74,8 @@ type HomeState = {
   saving: boolean;
   /** Shown when medication data is successfully sent to the BLE device. */
   sendSuccessVisible: boolean;
+  /** Error message when the BLE write failed or timed out — null = hidden. */
+  sendError: string | null;
 
   // ── Actions ──
   setEditing: (editing: boolean) => void;
@@ -122,11 +126,18 @@ type HomeState = {
   dismissBluetoothRequiredPrompt: () => void;
   /** Close the success notification modal shown after a BLE write succeeds. */
   closeSendSuccessModal: () => void;
+  /** "Retry" in the send-error popup — closes it and re-runs `handleSave()`. */
+  retrySend: () => void;
+  /** Tap-outside / back on the send-error popup — stays in edit mode. */
+  dismissSendError: () => void;
 
   // ── Internal ──
   /** Snapshot of `data` taken when Edit was pressed — lets "Undo changes"
    * restore drug quantities if Save is blocked by a missing BLE connection. */
   _dataBeforeEdit: Drug[] | null;
+  /** Slot whose dose alert arrived while blocked (editing / another popup
+   * open) — raised as soon as the screen is free again. */
+  _pendingDoseAlert: number | null;
   /** Per-day answer sheet, persisted to MMKV. */
   _slotState: SlotDayState;
   /** slotIndex → epoch ms before which the slot stays quiet. */
@@ -164,7 +175,9 @@ export const useHomeStore = create<HomeState>()(
     bluetoothRequiredPromptVisible: false,
     saving: false,
     sendSuccessVisible: false,
+    sendError: null,
     _dataBeforeEdit: null,
+    _pendingDoseAlert: null,
     _slotState: loadSlotState(),
     _snoozedUntil: {},
 
@@ -208,27 +221,55 @@ export const useHomeStore = create<HomeState>()(
       // Stay in edit mode while sending: the screen swaps Save ↔ Edit on
       // `editing`, so flipping it here would unmount the disabled/spinner
       // Save button and expose a clickable "Edit plan" mid-request.
-      set({ saving: true });
-      const sent = await sendPayload({
-        type: BLE_DATA_TYPE.EVENT,
-        message: {
-          name: BLE_EVENT_TYPE.SETTING_ALARM_TIME,
-          time: times,
-          drugslot: data,
-          timezoneOffsetMinutes: -new Date().getTimezoneOffset(),
-        },
-      });
+      set({ saving: true, sendError: null });
+
+      // The BLE write has no timeout of its own — an unresponsive board would
+      // leave `saving` (and the Save button) stuck forever.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const result = await Promise.race([
+        sendPayload({
+          type: BLE_DATA_TYPE.EVENT,
+          message: {
+            name: BLE_EVENT_TYPE.SETTING_ALARM_TIME,
+            time: times,
+            drugslot: data,
+            timezoneOffsetMinutes: -new Date().getTimezoneOffset(),
+          },
+        }),
+        new Promise<"timeout">((resolve) => {
+          timer = setTimeout(() => resolve("timeout"), SEND_TIMEOUT_MS);
+        }),
+      ]);
+      clearTimeout(timer);
+
+      // Only commit what the board actually received — on failure keep the
+      // edit (and its undo snapshot) so the user can retry or undo.
+      if (result !== true) {
+        set({
+          saving: false,
+          sendError:
+            result === "timeout"
+              ? "The board didn't respond in time."
+              : (useBluetoothStore.getState().error ??
+                "Couldn't send data to the board."),
+        });
+        return;
+      }
 
       set({
         saving: false,
         savedData: data,
         editing: false,
         _dataBeforeEdit: null,
+        sendSuccessVisible: true,
       });
-      if (sent) {
-        set({ sendSuccessVisible: true });
-      }
     },
+
+    retrySend: () => {
+      set({ sendError: null });
+      get().handleSave();
+    },
+    dismissSendError: () => set({ sendError: null }),
     handleHeaderPress: (i) => {
       const { editing } = get();
       if (!editing) return;
@@ -344,6 +385,12 @@ export const useHomeStore = create<HomeState>()(
         set({ _slotState: slotState });
         return;
       }
+      if (isDoseAlertBlocked(get())) {
+        // Mid-edit or another popup is up: queue it, the flush subscription
+        // at the bottom of this file raises it once the screen is free.
+        set({ _slotState: slotState, _pendingDoseAlert: slotIndex });
+        return;
+      }
       set({ _slotState: slotState, doseAlertIndex: slotIndex });
 
       const field = TIME_FIELDS[slotIndex];
@@ -365,6 +412,7 @@ export const useHomeStore = create<HomeState>()(
         editing: false,
         _dataBeforeEdit: null,
         bluetoothRequiredPromptVisible: false,
+        sendError: null,
       }));
     },
 
@@ -373,8 +421,7 @@ export const useHomeStore = create<HomeState>()(
 
     // ── Clock check (interval + AppState resume) ──
     checkDoseAlerts: (opts) => {
-      const { editing, times, savedData, doseAlertIndex, _snoozedUntil } =
-        get();
+      const { times, savedData, _snoozedUntil } = get();
 
       // Roll the day over first, otherwise a session that survives midnight
       // keeps yesterday's answers and never alerts again.
@@ -383,9 +430,9 @@ export const useHomeStore = create<HomeState>()(
         set({ _slotState: slotState, _snoozedUntil: {} });
       }
 
-      // Modal already open, or the user is mid-edit: bail WITHOUT marking
-      // anything, so the next tick re-evaluates and nothing is lost.
-      if (editing || doseAlertIndex !== null) return;
+      // Mid-edit or any popup open: bail WITHOUT marking anything — the
+      // flush subscription re-runs this the moment the screen is free.
+      if (isDoseAlertBlocked(get())) return;
 
       const now = Date.now();
       const nowMin = minutesOfDay();
@@ -436,6 +483,25 @@ export const useHomeStore = create<HomeState>()(
   })),
 );
 
+// ─── Dose-alert gating ────────────────────────────────────────────────────────
+
+/** A dose alert must not interrupt an edit/save, nor stack on another Modal
+ * (iOS can only present one at a time). */
+function isDoseAlertBlocked(s: HomeState): boolean {
+  return (
+    s.editing ||
+    s.saving ||
+    s.doseAlertIndex !== null ||
+    s.previewUri !== null ||
+    s.editingTimeIndex !== null ||
+    s.labelPicker !== null ||
+    s.noteModal !== null ||
+    s.bluetoothRequiredPromptVisible ||
+    s.sendSuccessVisible ||
+    s.sendError !== null
+  );
+}
+
 // ─── Slot-state helpers ───────────────────────────────────────────────────────
 
 /** Return a fresh answer sheet when the calendar day changed. */
@@ -456,6 +522,24 @@ function resolveSlot(
     resolved: { ...base.resolved, [`${slotIndex}`]: resolution },
   };
 }
+
+// ─── Side effect: raise deferred dose alerts once the screen is free ────────
+
+useHomeStore.subscribe(isDoseAlertBlocked, (blocked) => {
+  if (blocked) return;
+  setTimeout(() => {
+    const s = useHomeStore.getState();
+    if (isDoseAlertBlocked(s)) return;
+    if (s._pendingDoseAlert !== null) {
+      const slotIndex = s._pendingDoseAlert;
+      useHomeStore.setState({ _pendingDoseAlert: null });
+      s.openDoseAlert(slotIndex);
+    } else {
+      // Covers clock ticks that bailed while blocked.
+      s.checkDoseAlerts();
+    }
+  }, MODAL_SETTLE_MS);
+});
 
 // ─── Side effects: persist to MMKV on change ─────────────────────────────────
 

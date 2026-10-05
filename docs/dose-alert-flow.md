@@ -92,8 +92,12 @@ C đi qua `openDoseAlert(slotIndex)` (mở trực tiếp, chỉ chặn nếu slo
    → nếu _slotState.date !== hôm nay: reset { date: today, resolved: {} }
      và xoá _snoozedUntil.   (session sống qua nửa đêm vẫn hoạt động)
 
-2. Nếu editing === true HOẶC doseAlertIndex !== null → return
-   ⚠️ KHÔNG mark gì cả, để tick sau đánh giá lại → không mất slot nào.
+2. Nếu isDoseAlertBlocked() → return
+   (đang sửa / đang gửi BLE / đang mở BẤT KỲ popup nào khác)
+   ⚠️ KHÔNG mark gì cả. Khi màn hình rảnh lại, subscription "flush" tự gọi
+   lại checkDoseAlerts() sau MODAL_SETTLE_MS (400ms) → không mất slot nào.
+   openDoseAlert() (đường notification) dùng chung điều kiện này: nếu bị chặn
+   thì lưu slot vào _pendingDoseAlert, flush sẽ mở nó sau.
 
 3. nowMin = giờ hiện tại tính theo phút-từ-nửa-đêm (minutesOfDay())
 
