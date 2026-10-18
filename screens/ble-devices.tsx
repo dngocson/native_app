@@ -1,5 +1,7 @@
+import { FirmwareUpdateCard } from "@/components/firmware-update-card";
 import { Text } from "@/components/ui/text";
 import { useBluetoothStore } from "@/store/bluetoothStore";
+import { useFirmwareStore } from "@/store/firmwareStore";
 import { useEffect, useRef } from "react";
 import {
   ActivityIndicator,
@@ -24,6 +26,9 @@ export default function BleDevicesScreen() {
     connectToDevice,
     clearError,
   } = useBluetoothStore();
+
+  // Keep the card visible while the board reboots (temporarily disconnected)
+  const firmwareStatus = useFirmwareStore((s) => s.status);
 
   // Show error as Alert (side effect — must be in useEffect, not render)
   const prevError = useRef<string | null>(null);
@@ -111,6 +116,9 @@ export default function BleDevicesScreen() {
           </Text>
         </View>
       )}
+
+      {/* Firmware update (OTA) */}
+      {(connectedDevice || firmwareStatus !== "idle") && <FirmwareUpdateCard />}
 
       {/* Scan Button */}
       <Pressable

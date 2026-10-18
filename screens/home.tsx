@@ -4,6 +4,7 @@ import { DoseAlertModal } from "@/components/home/DoseAlertModal";
 import { DoseHistory } from "@/components/home/DoseHistory";
 import { DrugNoteModal } from "@/components/home/DrugNoteModal";
 import { DrugTable } from "@/components/home/DrugTable";
+import { FirmwareUpdateCard } from "@/components/firmware-update-card";
 import { SendErrorModal } from "@/components/home/SendErrorModal";
 import { SendSuccessModal } from "@/components/home/SendSuccessModal";
 import { LabelPickerModal } from "@/components/home/LabelPickerModal";
@@ -20,6 +21,7 @@ import {
 import { Button, ButtonSpinner, ButtonText } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { useBluetoothStore } from "@/store/bluetoothStore";
+import { useFirmwareStore } from "@/store/firmwareStore";
 import { useHomeStore } from "@/store/homeStore";
 import type { RootStackParamList, TabParamList } from "@/types/navigation";
 import type { RouteProp } from "@react-navigation/native";
@@ -192,6 +194,8 @@ export default function HomeScreen() {
     }
   }, [route.params, navigation, setPhoto]);
 
+  const firmwareStatus = useFirmwareStore((s) => s.status);
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -212,6 +216,10 @@ export default function HomeScreen() {
             onConnect={() => navigation.navigate("BleDevices")}
             onDisconnect={() => disconnectDevice()}
           />
+          {/* Firmware update (OTA) — visible while connected or mid-update */}
+          {(connectedDevice || firmwareStatus !== "idle") && (
+            <FirmwareUpdateCard />
+          )}
           {/* Drug Table */}
           <DrugTable
             data={data}

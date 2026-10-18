@@ -7,8 +7,13 @@ import { create } from "zustand";
 
 // ─── BLE Manager singleton ───────────────────────────────────────────────────
 
-const manager = new BleManager();
+export const manager = new BleManager();
 const SCAN_TIMEOUT_MS = 10_000;
+
+// UUID phải khớp với firmware/ble_server.py
+export const BLE_SERVICE_UUID = "12345678-1234-1234-1234-1234567890ab";
+export const BLE_DATA_CHAR_UUID = "abcdefab-1234-5678-1234-abcdefabcdef";
+export const BLE_OTA_CHAR_UUID = "abcdefab-1234-5678-1234-abcdefab0a7a";
 const MAX_RECEIVED_MESSAGES = 200;
 
 /** Return the best display name for a BLE device */
@@ -57,7 +62,13 @@ type BluetoothState = {
   requestEnableBluetooth: () => Promise<boolean>;
   startScan: () => Promise<void>;
   stopScan: () => Promise<void>;
-  connectToDevice: (device: Device) => Promise<void>;
+  /** Resolves true on success. `navigateOnSuccess` defaults to true. */
+  connectToDevice: (
+    device: Device,
+    options?: { navigateOnSuccess?: boolean },
+  ) => Promise<boolean>;
+  /** Next disconnect is intentional (e.g. board rebooting) — don't raise an error. */
+  expectDisconnect: (expected?: boolean) => void;
   disconnectDevice: () => Promise<void>;
   /** Resolves true once the write is acknowledged, false on any failure. */
   sendPayload: (payload: BlePayload) => Promise<boolean>;
@@ -66,6 +77,7 @@ type BluetoothState = {
 
   // ── Internal ──
   _connecting: boolean;
+  _expectDisconnect: boolean;
   _monitorSub: Subscription | null;
   _disconnectSub: Subscription | null;
   _scanTimer: ReturnType<typeof setTimeout> | null;
@@ -103,6 +115,7 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
   _notifyServiceUUID: null,
   _notifyCharUUID: null,
   _connecting: false,
+  _expectDisconnect: false,
   _monitorSub: null,
   _disconnectSub: null,
   _scanTimer: null,
@@ -219,10 +232,12 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
   },
 
   // ── connectToDevice ──────────────────────────────────────────────────────
-  connectToDevice: async (device) => {
+  connectToDevice: async (device, options) => {
+    const navigateOnSuccess = options?.navigateOnSuccess ?? true;
+
     // Prevent concurrent connection attempts
-    if (get()._connecting) return;
-    set({ _connecting: true });
+    if (get()._connecting) return false;
+    set({ _connecting: true, _expectDisconnect: false });
 
     try {
       const {
@@ -242,7 +257,7 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
             _connecting: false,
           });
 
-          return;
+          return true;
         }
       }
 
@@ -276,19 +291,29 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
       let notifyServiceUUID: string | null = null;
       let notifyUUID: string | null = null;
 
+      const isDataChar = (uuid: string) =>
+        uuid.toLowerCase() === BLE_DATA_CHAR_UUID;
+      const isOtaChar = (uuid: string) =>
+        uuid.toLowerCase() === BLE_OTA_CHAR_UUID;
+
       for (const svc of services) {
         const chars = await discovered.characteristicsForService(svc.uuid);
         for (const c of chars) {
-          if (c.isWritableWithResponse || c.isWritableWithoutResponse) {
+          // OTA characteristic is handled by firmwareStore
+          if (isOtaChar(c.uuid)) continue;
+          if (
+            (c.isWritableWithResponse || c.isWritableWithoutResponse) &&
+            (!writeUUID || isDataChar(c.uuid))
+          ) {
             writeServiceUUID = svc.uuid;
             writeUUID = c.uuid;
           }
-          if (c.isNotifiable) {
+          if (c.isNotifiable && (!notifyUUID || isDataChar(c.uuid))) {
             notifyServiceUUID = svc.uuid;
             notifyUUID = c.uuid;
           }
         }
-        if (writeUUID && notifyUUID) break;
+        if (writeUUID && isDataChar(writeUUID)) break;
       }
 
       set({
@@ -341,6 +366,7 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
       // Listen for unexpected disconnects
       const disconnectSub = manager.onDeviceDisconnected(device.id, () => {
         get()._monitorSub?.remove();
+        const expected = get()._expectDisconnect;
         set({
           connectedDevice: null,
           _monitorSub: null,
@@ -349,22 +375,34 @@ export const useBluetoothStore = create<BluetoothState>((set, get) => ({
           _writeCharUUID: null,
           _notifyServiceUUID: null,
           _notifyCharUUID: null,
-          error: `Device "${deviceName(device) ?? device.id}" disconnected.`,
+          _expectDisconnect: false,
+          ...(expected
+            ? {}
+            : {
+                error: `Device "${deviceName(device) ?? device.id}" disconnected.`,
+              }),
         });
       });
       set({ _disconnectSub: disconnectSub });
 
       set({ connectingId: null });
-      navigate("Tabs");
+      if (navigateOnSuccess) navigate("Tabs");
+      return true;
     } catch (err: any) {
       set({
-        error: err.message ?? "Connection failed",
+        ...(navigateOnSuccess
+          ? { error: err.message ?? "Connection failed" }
+          : {}),
         connectingId: null,
       });
+      return false;
     } finally {
       set({ _connecting: false });
     }
   },
+
+  // ── expectDisconnect ─────────────────────────────────────────────────────
+  expectDisconnect: (expected = true) => set({ _expectDisconnect: expected }),
 
   // ── disconnectDevice ─────────────────────────────────────────────────────
   disconnectDevice: async () => {

@@ -3,9 +3,11 @@
   "main": "expo/AppEntry",
   "version": "1.0.0",
   "scripts": {
-    "start": "expo start",
+    "start": "node scripts/build-firmware.js && expo start",
+    "firmware:bundle": "node scripts/build-firmware.js",
+    "build:android": "node scripts/build-android.js",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo run:android",
+    "android": "node scripts/build-firmware.js && expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint"
