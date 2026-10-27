@@ -1,0 +1,3 @@
+# Firmware MicroPython luôn dùng LF: CRC trong firmwareBundle.ts phải khớp
+# với file nạp qua USB, bất kể core.autocrlf trên máy.
+firmware/** text eol=lf

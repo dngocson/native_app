@@ -12,6 +12,7 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { Buffer } = require("buffer");
 
 const root = process.cwd();
 const firmwareDir = path.join(root, "firmware");
@@ -46,7 +47,11 @@ const files = fs
   )
   .sort()
   .map((name) => {
-    const content = fs.readFileSync(path.join(firmwareDir, name));
+    // Chuẩn hoá CRLF -> LF để CRC không phụ thuộc cách git checkout trên Windows
+    const content = Buffer.from(
+      fs.readFileSync(path.join(firmwareDir, name), "utf8").replace(/\r\n/g, "\n"),
+      "utf8",
+    );
     return {
       name,
       size: content.length,
