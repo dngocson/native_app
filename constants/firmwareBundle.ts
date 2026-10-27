@@ -14,7 +14,7 @@ export const FIRMWARE_BUNDLE: {
   files: FirmwareFile[];
 } = {
   "version": "4ce0ddbe",
-  "builtAt": "2026-10-18T07:11:41.329Z",
+  "builtAt": "2026-10-27T15:52:02.654Z",
   "files": [
     {
       "name": "app.py",

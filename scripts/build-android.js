@@ -4,10 +4,11 @@
  * Đóng gói firmware rồi build APK release.
  *
  * Chạy: npm run build:android
- * APK: android/app/build/outputs/apk/release/app-release.apk
+ * APK được copy ra dist/app-release.apk cho dễ lấy.
  */
 
 const { execSync } = require("child_process");
+const fs = require("fs");
 const path = require("path");
 
 const root = process.cwd();
@@ -19,10 +20,13 @@ const run = (cmd, cwd) => execSync(cmd, { cwd, stdio: "inherit" });
 try {
   run("node scripts/build-firmware.js", root);
   run(`${gradlew} assembleRelease`, androidDir);
-  console.log(
-    "\nAPK: " +
-      path.join(androidDir, "app", "build", "outputs", "apk", "release", "app-release.apk"),
-  );
+
+  const apk = path.join(androidDir, "app", "build", "outputs", "apk", "release", "app-release.apk");
+  const distDir = path.join(root, "dist");
+  const distApk = path.join(distDir, "app-release.apk");
+  fs.mkdirSync(distDir, { recursive: true });
+  fs.copyFileSync(apk, distApk);
+  console.log(`\nAPK: ${distApk}`);
 } catch {
   process.exit(1);
 }
