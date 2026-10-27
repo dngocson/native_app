@@ -60,7 +60,11 @@ type FirmwareState = {
   error: string | null;
   boardInfo: BoardFirmwareInfo | null;
   bundleVersion: string;
+  /** true = board differs from the bundled firmware; null = unknown / not connected */
+  updateAvailable: boolean | null;
 
+  /** Compares the connected board's files with the bundle (no-op while updating). */
+  checkForUpdate: () => Promise<void>;
   startUpdate: () => Promise<void>;
   cancelUpdate: () => void;
   reset: () => void;
@@ -307,6 +311,16 @@ const waitForConfirm = async (
   );
 };
 
+const BUSY_STATUSES: FirmwareStatus[] = [
+  "checking",
+  "uploading",
+  "rebooting",
+  "verifying",
+];
+
+const differsFromBundle = (info: BoardFirmwareInfo) =>
+  FIRMWARE_BUNDLE.files.some((f) => info.crcs?.[f.name] !== f.crc);
+
 export const useFirmwareStore = create<FirmwareState>((set, get) => ({
   status: "idle",
   progress: 0,
@@ -315,10 +329,34 @@ export const useFirmwareStore = create<FirmwareState>((set, get) => ({
   error: null,
   boardInfo: null,
   bundleVersion: FIRMWARE_BUNDLE.version,
+  updateAvailable: null,
+
+  checkForUpdate: async () => {
+    // startUpdate reconnects on its own — don't interfere mid-update
+    if (BUSY_STATUSES.includes(get().status)) return;
+
+    const device = useBluetoothStore.getState().connectedDevice;
+    if (!device) {
+      set({ updateAvailable: null });
+      return;
+    }
+
+    try {
+      const info = await readInfo(
+        device.id,
+        FIRMWARE_BUNDLE.files.map((f) => f.name),
+      );
+      if (BUSY_STATUSES.includes(get().status)) return;
+      set({ boardInfo: info, updateAvailable: differsFromBundle(info) });
+    } catch {
+      // Board without OTA support, or disconnected while checking
+      set({ updateAvailable: null });
+    }
+  },
 
   startUpdate: async () => {
     const { status } = get();
-    if (["checking", "uploading", "rebooting", "verifying"].includes(status)) {
+    if (BUSY_STATUSES.includes(status)) {
       return;
     }
 
@@ -362,6 +400,7 @@ export const useFirmwareStore = create<FirmwareState>((set, get) => ({
           status: "done",
           progress: 1,
           message: "Board is already up to date.",
+          updateAvailable: false,
         });
         return;
       }
@@ -438,6 +477,7 @@ export const useFirmwareStore = create<FirmwareState>((set, get) => ({
 
       set({
         status: "done",
+        updateAvailable: false,
         message: `Updated to ${FIRMWARE_BUNDLE.version} (${changed
           .map((f) => f.name)
           .join(", ")}).`,

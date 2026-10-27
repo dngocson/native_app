@@ -29,6 +29,7 @@ export default function BleDevicesScreen() {
 
   // Keep the card visible while the board reboots (temporarily disconnected)
   const firmwareStatus = useFirmwareStore((s) => s.status);
+  const firmwareUpdateAvailable = useFirmwareStore((s) => s.updateAvailable);
 
   // Show error as Alert (side effect — must be in useEffect, not render)
   const prevError = useRef<string | null>(null);
@@ -118,7 +119,8 @@ export default function BleDevicesScreen() {
       )}
 
       {/* Firmware update (OTA) */}
-      {(connectedDevice || firmwareStatus !== "idle") && <FirmwareUpdateCard />}
+      {(firmwareStatus !== "idle" ||
+        (connectedDevice && firmwareUpdateAvailable)) && <FirmwareUpdateCard />}
 
       {/* Scan Button */}
       <Pressable

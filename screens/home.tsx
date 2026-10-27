@@ -195,6 +195,14 @@ export default function HomeScreen() {
   }, [route.params, navigation, setPhoto]);
 
   const firmwareStatus = useFirmwareStore((s) => s.status);
+  const firmwareUpdateAvailable = useFirmwareStore((s) => s.updateAvailable);
+  const checkForFirmwareUpdate = useFirmwareStore((s) => s.checkForUpdate);
+
+  // Ask the board which firmware it runs whenever a device (re)connects
+  const connectedDeviceId = connectedDevice?.id;
+  useEffect(() => {
+    checkForFirmwareUpdate();
+  }, [connectedDeviceId, checkForFirmwareUpdate]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -216,8 +224,9 @@ export default function HomeScreen() {
             onConnect={() => navigation.navigate("BleDevices")}
             onDisconnect={() => disconnectDevice()}
           />
-          {/* Firmware update (OTA) — visible while connected or mid-update */}
-          {(connectedDevice || firmwareStatus !== "idle") && (
+          {/* Firmware update (OTA) — only when the board is outdated or mid-update */}
+          {(firmwareStatus !== "idle" ||
+            (connectedDevice && firmwareUpdateAvailable)) && (
             <FirmwareUpdateCard />
           )}
           {/* Drug Table */}
