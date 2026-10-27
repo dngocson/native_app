@@ -1,10 +1,10 @@
-from machine import Pin, I2C, PWM, ADC
+from machine import Pin, I2C, ADC
 import time
 import ujson
 import ubinascii
 import sh1106
 import ota
-from ds3231 import DS3231
+from ds1302 import DS1302
 from ble_server import BLEServer
 
 # ---------- CONFIG ----------
@@ -14,26 +14,30 @@ DEFAULT_TIMEZONE_OFFSET_MINUTES = 7 * 60  # Vietnam UTC+7
 MAX_BLE_BUFFER_SIZE = 4096
 STATE_FILE = "/pill_alert_state.json"
 
-# DS3231 dùng bus I2C riêng (I2C1) tách khỏi OLED (I2C0) cho dễ đi dây/debug.
-# Pico W: I2C1 SDA chỉ có thể là GP2/6/10/14/18/26, SCL là GP3/7/11/15/19/27
-# (GP15 đang là LED_PIN nên tránh). Đổi số chân tại đây khi chốt mạch thật.
-DS3231_I2C_ID = 1
-DS3231_SDA_PIN = 2
-DS3231_SCL_PIN = 3
-DS3231_I2C_ADDR = 0x68
+# Chân theo sơ đồ Pillbox_new (Pico W):
+# - OLED 1.3" SH1106: I2C1, SDA GP2, SCL GP3
+# - RTC DS1302 (3 dây): CE/RST GP10, I/O GP11, SCLK GP12
+# - Buzzer active 3V qua NPN S8050: GP15 (mức 1 = kêu)
+# - 6 LED slot thuốc (L1..L6): GP6, GP7, GP8, GP9, GP13, GP14
+# Mạch không có LED trạng thái riêng -> dùng LED onboard của Pico W.
+OLED_I2C_ID = 1
+OLED_SDA_PIN = 2
+OLED_SCL_PIN = 3
 
-LED_PIN = 15
-# 6 LED tương ứng 6 slot thuốc (drug_slots[0..5]). Đã kiểm tra không trùng
-# với I2C1 (GP2/GP3), I2C0 (GP4/GP5), LED_PIN (GP15), BUZZER_PIN (GP16).
+DS1302_CE_PIN = 10
+DS1302_IO_PIN = 11
+DS1302_SCLK_PIN = 12
+
+LED_PIN = "LED"
+# 6 LED tương ứng 6 slot thuốc (drug_slots[0..5])
 PILL_SLOT_LED_PINS = (6, 7, 8, 9, 13, 14)
-BUZZER_PIN = 16
-BUZZER_FREQ = 3000          # Hz, thử 2500-4000 để tìm mức to nhất
-BUZZER_VOLUME = 32768       # 0-65535
+BUZZER_PIN = 15
 BUZZER_TOGGLE_INTERVAL_MS = 300
 DEFAULT_ALARM_DURATION_MS = 15_000  # 30 giây
 
 # Pin LiPo đo qua cầu phân áp 2 điện trở bằng nhau (vd 100k + 100k) nối vào
-# GP26 (ADC0, chân vật lý 31). Không được nối thẳng pin vào GP26 vì pin đầy
+# GP26 (ADC0, chân vật lý 31). Sơ đồ Pillbox_new chưa có cầu phân áp này,
+# cần hàn thêm thì % pin mới đúng. Không được nối thẳng pin vào GP26 vì pin đầy
 # ~4.2V trong khi ADC chỉ chịu tối đa 3.3V.
 BATTERY_ADC_PIN = 26
 BATTERY_VOLTAGE_DIVIDER = 2.0  # 2 điện trở bằng nhau -> chia đôi điện áp
@@ -52,24 +56,22 @@ BATTERY_LIPO_CURVE = (
 # ---------- OUTPUT ----------
 led = Pin(LED_PIN, Pin.OUT, value=0)
 pill_slot_leds = [Pin(pin, Pin.OUT, value=0) for pin in PILL_SLOT_LED_PINS]
-buzzer = PWM(Pin(BUZZER_PIN))
-buzzer.freq(BUZZER_FREQ)
-buzzer.duty_u16(0)
+# Buzzer active: tự tạo âm, chỉ cần bật/tắt chân (không dùng PWM)
+buzzer = Pin(BUZZER_PIN, Pin.OUT, value=0)
 
 
 def buzzer_on():
-    buzzer.freq(BUZZER_FREQ)
-    buzzer.duty_u16(BUZZER_VOLUME)
+    buzzer.value(1)
 
 
 def buzzer_off():
-    buzzer.duty_u16(0)
+    buzzer.value(0)
 
 # ---------- OLED ----------
 i2c = I2C(
-    0,
-    sda=Pin(4),
-    scl=Pin(5),
+    OLED_I2C_ID,
+    sda=Pin(OLED_SDA_PIN),
+    scl=Pin(OLED_SCL_PIN),
     freq=400000,
 )
 
@@ -77,13 +79,11 @@ oled = sh1106.SH1106_I2C(128, 64, i2c)
 oled.flip(180)
 
 # ---------- RTC ----------
-i2c_rtc = I2C(
-    DS3231_I2C_ID,
-    sda=Pin(DS3231_SDA_PIN),
-    scl=Pin(DS3231_SCL_PIN),
-    freq=400000,
+rtc = DS1302(
+    clk=DS1302_SCLK_PIN,
+    dio=DS1302_IO_PIN,
+    cs=DS1302_CE_PIN,
 )
-rtc = DS3231(i2c_rtc, DS3231_I2C_ADDR)
 
 # ---------- BATTERY ----------
 battery_adc = ADC(BATTERY_ADC_PIN)
@@ -127,7 +127,7 @@ def read_battery_percent():
 # ---------- STATE ----------
 is_connected = False
 
-# True khi DS3231 đang giữ giờ tin cậy (đã từng SETTING_TIME và pin RTC
+# True khi DS1302 đang giữ giờ tin cậy (đã từng SETTING_TIME và pin RTC
 # chưa từng hết). Giờ thực tế luôn được đọc trực tiếp từ chip, không giữ
 # bằng ticks_ms như trước nữa.
 clock_is_set = False
@@ -297,7 +297,7 @@ def set_board_time(timestamp_ms, offset_minutes=None):
     if offset_minutes is not None:
         timezone_offset_minutes = int(offset_minutes)
 
-    # DS3231 lưu giờ UTC (dạng lịch), offset múi giờ chỉ áp dụng lúc hiển thị.
+    # DS1302 lưu giờ UTC (dạng lịch), offset múi giờ chỉ áp dụng lúc hiển thị.
     year, month, day, hour, minute, second, weekday, _ = time.gmtime(
         timestamp_ms // 1000
     )
@@ -383,7 +383,7 @@ def load_persisted_state():
     """Đọc lại alarm/drugslot đã lưu và kiểm tra giờ RTC để không mất dữ liệu
     sau khi reload/mất điện.
 
-    Lưu ý: giờ thực tế do DS3231 giữ (có pin backup riêng) nên vẫn đúng qua
+    Lưu ý: giờ thực tế do DS1302 giữ (có pin backup riêng) nên vẫn đúng qua
     các lần mất điện của board, miễn pin RTC còn sống. Nếu pin RTC hết/chưa
     lắp, chip tự báo qua cờ OSF và board sẽ coi như chưa từng SETTING_TIME.
     """

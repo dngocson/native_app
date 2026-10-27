@@ -23,7 +23,8 @@ except Exception as err:
             from machine import Pin, I2C
             import sh1106
 
-            oled = sh1106.SH1106_I2C(128, 64, I2C(0, sda=Pin(4), scl=Pin(5)))
+            # Chân OLED theo sơ đồ Pillbox_new: I2C1, SDA GP2, SCL GP3
+            oled = sh1106.SH1106_I2C(128, 64, I2C(1, sda=Pin(2), scl=Pin(3)))
             oled.flip(180)
             oled.fill(0)
             oled.text("SAFE MODE", 0, 0)
